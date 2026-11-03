@@ -50,7 +50,8 @@ final class JpaAdapters {
 
         @Override
         public Business save(Business business) {
-            return jpa.save(business);
+            // Flushed so plain-SQL writes in the same transaction (invoice numbering) can reference it.
+            return jpa.saveAndFlush(business);
         }
     }
 

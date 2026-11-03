@@ -60,6 +60,32 @@ class PlatformIT extends IntegrationTest {
                 .hasSize(36);
     }
 
+    /**
+     * Behind nginx the SPA and API share an origin under any hostname. The proxy forwards the
+     * public host and port, so these requests must not be treated as cross-origin.
+     */
+    @Test
+    void proxiedSameOriginRequestsPassCorsButForeignOriginsDoNot() {
+        String credentials = "{\"email\":\"nobody@example.test\",\"password\":\"Wrong123\"}";
+
+        var sameOrigin = new HttpHeaders();
+        sameOrigin.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+        sameOrigin.setOrigin("http://invoices.example:3000");
+        sameOrigin.set("X-Forwarded-Host", "invoices.example");
+        sameOrigin.set("X-Forwarded-Port", "3000");
+        sameOrigin.set("X-Forwarded-Proto", "http");
+        var proxied = http.exchange(
+                "/api/v1/auth/login", HttpMethod.POST, new HttpEntity<>(credentials, sameOrigin), String.class);
+        assertThat(proxied.getStatusCode().value()).as("reaches the controller").isEqualTo(401);
+
+        var foreign = new HttpHeaders();
+        foreign.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+        foreign.setOrigin("http://evil.example");
+        var rejected = http.exchange(
+                "/api/v1/auth/login", HttpMethod.POST, new HttpEntity<>(credentials, foreign), String.class);
+        assertThat(rejected.getStatusCode().value()).isEqualTo(403);
+    }
+
     @Test
     void unknownRoutesUnderTheApiRequireAuthentication() {
         assertThat(get("/api/v1/does-not-exist", null).getStatusCode().value()).isEqualTo(401);

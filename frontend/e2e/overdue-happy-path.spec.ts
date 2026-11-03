@@ -37,7 +37,8 @@ test('create invoice → simulate overdue → see notification', async ({ page }
   await page.getByLabel('Line 1 description').fill('E2E brand workshop');
   await page.getByLabel('Quantity').fill('2');
   await page.getByLabel('Unit price').fill('1000');
-  await expect(page.getByTestId('preview-total')).toContainText('2 300,00');
+  // 2 x 1000 + 15% VAT. Browsers differ on en-ZA separators ("2 300,00" vs "2,300.00").
+  await expect(page.getByTestId('preview-total')).toHaveText(/R\s?2.300.00/);
   await page.getByRole('button', { name: 'Save draft' }).click();
 
   // Send it.
