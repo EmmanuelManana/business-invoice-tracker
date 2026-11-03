@@ -1,0 +1,21 @@
+# Local development without Docker (./mvnw -pl api spring-boot:run -Dspring-boot.run.profiles=dev).
+# Convenience defaults only. Never use this profile in a deployed environment.
+spring:
+  datasource:
+    password: ${SPRING_DATASOURCE_PASSWORD:invoice_tracker}
+
+app:
+  auth:
+    jwt-secret: ${APP_AUTH_JWT_SECRET:local-dev-only-secret-change-me-0123456789abcdef}
+    cookie-secure: false
+  dev-tools:
+    enabled: true
+  seed:
+    enabled: true
+    demo-password: ${APP_SEED_DEMO_PASSWORD:Demo@12345}
+  cors:
+    allowed-origins: http://localhost:5173
+
+logging:
+  level:
+    com.invoicetracker: DEBUG

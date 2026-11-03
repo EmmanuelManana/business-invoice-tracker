@@ -1,0 +1,100 @@
+# Base configuration. Secrets have no defaults here: they must come from the environment
+# (see .env.example). Profile files only adjust behaviour per environment.
+spring:
+  application:
+    name: invoice-tracker-api
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/invoice_tracker}
+    username: ${SPRING_DATASOURCE_USERNAME:invoice_tracker}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 5000
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  mvc:
+    problemdetails:
+      enabled: true
+  jackson:
+    default-property-inclusion: non_null
+
+server:
+  port: 8080
+  shutdown: graceful
+  # Trust X-Forwarded-* from the reverse proxy (nginx) so client IPs are correct for rate limiting.
+  forward-headers-strategy: native
+  error:
+    include-message: never
+    include-stacktrace: never
+
+management:
+  endpoints:
+    web:
+      base-path: /
+      exposure:
+        include: health
+      path-mapping:
+        health: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+      group:
+        live:
+          include: livenessState
+        ready:
+          include: readinessState,db
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+
+logging:
+  pattern:
+    correlation: "[%X{correlationId:-}] "
+  level:
+    com.invoicetracker: INFO
+    notifications.simulated: INFO
+
+app:
+  auth:
+    jwt-secret: ${APP_AUTH_JWT_SECRET:}
+    access-token-ttl: PT15M
+    refresh-token-ttl: P7D
+    cookie-secure: true
+  time:
+    zone: Africa/Johannesburg
+  overdue:
+    scheduler-enabled: true
+    interval: PT1M
+    initial-delay: PT15S
+  reminders:
+    offsets-days: [-3, 0, 1, 7, 14]
+    sms-enabled: true
+    max-delivery-attempts: 3
+  dev-tools:
+    enabled: false
+  seed:
+    enabled: false
+  rate-limit:
+    auth-requests: 10
+    auth-window: PT1M

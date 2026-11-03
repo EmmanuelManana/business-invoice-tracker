@@ -1,0 +1,6 @@
+# Container profile: JSON logs (one event per line, ready for a log shipper).
+# Everything else comes from environment variables set by docker-compose.
+logging:
+  structured:
+    format:
+      console: logstash
