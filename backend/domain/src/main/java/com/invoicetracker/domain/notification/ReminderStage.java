@@ -6,6 +6,14 @@ package com.invoicetracker.domain.notification;
  */
 public record ReminderStage(int offsetDays) implements Comparable<ReminderStage> {
 
+    /** Parses a stage code produced by {@link #code()}; empty for anything else. */
+    public static java.util.Optional<ReminderStage> parse(String code) {
+        if (code == null || !code.matches("^D(0|[+-][1-9]\\d{0,3})$")) {
+            return java.util.Optional.empty();
+        }
+        return java.util.Optional.of(new ReminderStage(Integer.parseInt(code.substring(1))));
+    }
+
     /** Stage code stored on notifications, e.g. {@code D-3}, {@code D0}, {@code D+7}. */
     public String code() {
         if (offsetDays == 0) {
