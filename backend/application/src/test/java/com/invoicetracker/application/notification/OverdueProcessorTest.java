@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.invoicetracker.application.config.ApplicationSettings;
 import com.invoicetracker.application.port.NotificationSender;
 import com.invoicetracker.application.port.NotificationTemplateRenderer.RenderedMessage;
+import com.invoicetracker.application.support.FakeJobLock;
 import com.invoicetracker.application.support.InMemoryRepositories;
 import com.invoicetracker.application.support.MutableClock;
 import com.invoicetracker.domain.business.Business;
@@ -44,6 +45,7 @@ class OverdueProcessorTest {
     private final RecordingSender email = new RecordingSender(NotificationChannel.EMAIL);
     private final RecordingSender sms = new RecordingSender(NotificationChannel.SMS);
     private final RecordingSender inApp = new RecordingSender(NotificationChannel.IN_APP);
+    private final FakeJobLock jobLock = new FakeJobLock();
 
     private Business business;
     private Customer customerWithPhone;
@@ -66,7 +68,8 @@ class OverdueProcessorTest {
         TransactionOperations tx = TransactionOperations.withoutTransaction();
         var dispatcher =
                 new NotificationDispatcher(notifications, invoices, List.of(email, sms, inApp), tx, settings, clock);
-        return new OverdueProcessor(invoices, businesses, notifications, composer, dispatcher, tx, settings, clock);
+        return new OverdueProcessor(
+                invoices, businesses, notifications, composer, dispatcher, tx, jobLock, settings, clock);
     }
 
     private OverdueProcessor processor() {
@@ -96,6 +99,17 @@ class OverdueProcessorTest {
         return notifications.all().stream()
                 .filter(n -> n.getInvoiceId().equals(invoice.getId()))
                 .toList();
+    }
+
+    @Test
+    void skipsWhenAnotherRunHoldsTheLock() {
+        Invoice invoice = sentInvoiceDueInDays(customerWithoutPhone, 0);
+        jobLock.held = true;
+
+        OverdueRunResult result = processor().run();
+
+        assertThat(result.skipped()).isTrue();
+        assertThat(notificationsFor(invoice)).isEmpty();
     }
 
     @Test

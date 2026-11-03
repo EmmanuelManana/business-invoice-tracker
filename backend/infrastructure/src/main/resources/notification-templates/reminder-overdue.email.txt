@@ -1,0 +1,11 @@
+Subject: Overdue: invoice {{invoiceNumber}} is {{daysOverdue}} day(s) past due
+
+Dear {{customerName}},
+
+Our records show that invoice {{invoiceNumber}} from {{businessName}}, due on {{dueDate}}, is now {{daysOverdue}} day(s) overdue. The outstanding balance is {{currency}} {{balanceDue}}.
+
+Please settle the balance as soon as possible, or contact us if there is a problem with this invoice.
+
+Kind regards,
+{{businessName}}
+{{businessEmail}} {{businessPhone}}

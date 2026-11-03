@@ -1,0 +1,11 @@
+Subject: Reminder: invoice {{invoiceNumber}} is due in {{daysUntilDue}} day(s)
+
+Dear {{customerName}},
+
+This is a friendly reminder that invoice {{invoiceNumber}} from {{businessName}} for {{currency}} {{balanceDue}} is due on {{dueDate}}.
+
+If you have already paid, please ignore this message.
+
+Kind regards,
+{{businessName}}
+{{businessEmail}} {{businessPhone}}

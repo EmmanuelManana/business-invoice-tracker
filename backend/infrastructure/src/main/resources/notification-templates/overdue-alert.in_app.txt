@@ -1,0 +1,3 @@
+Subject: {{invoiceNumber}} for {{customerName}} is overdue
+
+Invoice {{invoiceNumber}} for {{customerName}} was due on {{dueDate}} and has an outstanding balance of {{currency}} {{balanceDue}}. Payment reminders will be sent to the customer automatically.

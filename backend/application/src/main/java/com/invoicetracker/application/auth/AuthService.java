@@ -21,11 +21,15 @@ import java.time.Clock;
 import java.time.Instant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AuthService {
+
+    /** Bean name of the real-time clock (as opposed to the adjustable business clock). */
+    public static final String SYSTEM_CLOCK = "systemClock";
 
     private static final Logger log = LoggerFactory.getLogger(AuthService.class);
     private static final String INVALID_CREDENTIALS = "Invalid email or password";
@@ -47,7 +51,8 @@ public class AuthService {
             PasswordHasher passwordHasher,
             AccessTokenIssuer accessTokens,
             ApplicationSettings settings,
-            Clock clock) {
+            // Sessions use real time, not the business clock the dev tools can shift.
+            @Qualifier(SYSTEM_CLOCK) Clock clock) {
         this.users = users;
         this.businesses = businesses;
         this.refreshTokens = refreshTokens;

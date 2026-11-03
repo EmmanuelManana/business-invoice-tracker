@@ -1,0 +1,11 @@
+Subject: Invoice {{invoiceNumber}} is due today
+
+Dear {{customerName}},
+
+Invoice {{invoiceNumber}} from {{businessName}} for {{currency}} {{balanceDue}} is due today ({{dueDate}}).
+
+Please arrange payment at your earliest convenience. If you have already paid, thank you and please ignore this message.
+
+Kind regards,
+{{businessName}}
+{{businessEmail}} {{businessPhone}}

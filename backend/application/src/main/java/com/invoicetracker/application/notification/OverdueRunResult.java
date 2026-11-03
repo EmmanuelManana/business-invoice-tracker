@@ -12,4 +12,10 @@ public record OverdueRunResult(
         int alertsQueued,
         int notificationsSent,
         int notificationsFailed,
-        int errors) {}
+        int errors,
+        boolean skipped) {
+
+    static OverdueRunResult skipped(Instant ranAt, LocalDate businessDate) {
+        return new OverdueRunResult(ranAt, businessDate, 0, 0, 0, 0, 0, 0, true);
+    }
+}

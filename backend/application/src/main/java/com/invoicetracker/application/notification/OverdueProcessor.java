@@ -3,6 +3,7 @@ package com.invoicetracker.application.notification;
 import com.invoicetracker.application.config.ApplicationSettings;
 import com.invoicetracker.application.port.BusinessRepository;
 import com.invoicetracker.application.port.InvoiceRepository;
+import com.invoicetracker.application.port.JobLock;
 import com.invoicetracker.application.port.NotificationRepository;
 import com.invoicetracker.domain.business.Business;
 import com.invoicetracker.domain.customer.Customer;
@@ -43,6 +44,7 @@ import org.springframework.transaction.support.TransactionOperations;
 public class OverdueProcessor {
 
     private static final Logger log = LoggerFactory.getLogger(OverdueProcessor.class);
+    static final String JOB_NAME = "overdue-processor";
 
     private final InvoiceRepository invoices;
     private final BusinessRepository businesses;
@@ -50,6 +52,7 @@ public class OverdueProcessor {
     private final ReminderComposer composer;
     private final NotificationDispatcher dispatcher;
     private final TransactionOperations tx;
+    private final JobLock jobLock;
     private final ApplicationSettings settings;
     private final ReminderSchedule schedule;
     private final Clock clock;
@@ -61,6 +64,7 @@ public class OverdueProcessor {
             ReminderComposer composer,
             NotificationDispatcher dispatcher,
             TransactionOperations tx,
+            JobLock jobLock,
             ApplicationSettings settings,
             Clock clock) {
         this.invoices = invoices;
@@ -69,12 +73,21 @@ public class OverdueProcessor {
         this.composer = composer;
         this.dispatcher = dispatcher;
         this.tx = tx;
+        this.jobLock = jobLock;
         this.settings = settings;
         this.schedule = new ReminderSchedule(settings.reminderOffsetsDays());
         this.clock = clock;
     }
 
+    /** Runs the job unless another instance is already running it (then returns a skipped result). */
     public OverdueRunResult run() {
+        return jobLock.tryRun(JOB_NAME, this::runExclusively).orElseGet(() -> {
+            log.info("Overdue run skipped: another run is in progress");
+            return OverdueRunResult.skipped(clock.instant(), LocalDate.now(clock));
+        });
+    }
+
+    private OverdueRunResult runExclusively() {
         Instant now = clock.instant();
         LocalDate today = LocalDate.now(clock);
         var counters = new Counters();
@@ -95,7 +108,8 @@ public class OverdueProcessor {
                 counters.alertsQueued,
                 dispatched.sent(),
                 dispatched.failed(),
-                counters.errors);
+                counters.errors,
+                false);
         if (result.invoicesMarkedOverdue() + result.remindersQueued() + result.notificationsSent() > 0
                 || result.errors() > 0) {
             log.info(
