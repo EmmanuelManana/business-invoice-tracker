@@ -4,6 +4,8 @@ A web app for small businesses to create invoices, record payments and keep trac
 
 Built with Java 21 + Spring Boot on the backend, React + TypeScript on the frontend, and PostgreSQL for storage.
 
+For a deeper look at how it's designed, see [ARCHITECTURE.md](ARCHITECTURE.md).
+
 ---
 
 ## 1. Getting started
@@ -211,6 +213,8 @@ docker compose -f docker-compose.yml -f docker-compose.test.yml run --rm e2e
 Every push to GitHub runs all of this automatically (see `.github/workflows/ci.yml`).
 
 ## 5. How it's put together
+
+A short overview. The full write-up, with diagrams of the layers, data model, invoice lifecycle and reminder job, plus security and design decisions, is in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ```mermaid
 flowchart LR
