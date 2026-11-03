@@ -212,6 +212,8 @@ docker compose -f docker-compose.yml -f docker-compose.test.yml run --rm e2e
 
 Every push to GitHub runs all of this automatically (see `.github/workflows/ci.yml`).
 
+**Manual testing:** [`docs/testing/manual-test-script.md`](docs/testing/manual-test-script.md) is a 20-step script for testing the app like a real user, with screenshots. Results go in [`docs/testing/manual-test-report.md`](docs/testing/manual-test-report.md).
+
 ## 5. How it's put together
 
 A short overview. The full write-up, with diagrams of the layers, data model, invoice lifecycle and reminder job, plus security and design decisions, is in [ARCHITECTURE.md](ARCHITECTURE.md).
