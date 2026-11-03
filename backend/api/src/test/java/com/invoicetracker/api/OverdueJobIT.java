@@ -54,11 +54,18 @@ class OverdueJobIT extends IntegrationTest {
         runOverdueCheck(session);
         assertThat(reminderStages(session)).contains("D+7/EMAIL", "D+7/SMS").hasSize(5);
 
-        JsonNode notification =
-                get("/api/v1/notifications", session.token()).getBody().at("/items/0");
-        assertThat(notification.get("status").asText()).isEqualTo("SENT");
-        assertThat(notification.get("subject").asText()).isNotBlank();
-        assertThat(notification.get("body").asText()).contains("Late Payer");
+        JsonNode email = null;
+        for (JsonNode n :
+                get("/api/v1/notifications", session.token()).getBody().get("items")) {
+            if (n.get("stage").asText().equals("D+7")
+                    && n.get("channel").asText().equals("EMAIL")) {
+                email = n;
+            }
+        }
+        assertThat(email).isNotNull();
+        assertThat(email.get("status").asText()).isEqualTo("SENT");
+        assertThat(email.get("subject").asText()).contains("7 day(s) past due");
+        assertThat(email.get("body").asText()).contains("Dear Late Payer").contains("ZAR 3700.00");
 
         JsonNode activity =
                 get("/api/v1/invoices/" + id + "/activity", session.token()).getBody();

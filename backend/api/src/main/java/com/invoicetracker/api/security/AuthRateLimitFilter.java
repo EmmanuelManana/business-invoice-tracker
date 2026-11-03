@@ -38,6 +38,7 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
     private final ObjectMapper objectMapper;
     private final ConcurrentMap<String, Window> windows = new ConcurrentHashMap<>();
 
+    @org.springframework.beans.factory.annotation.Autowired
     public AuthRateLimitFilter(AppProperties properties, ObjectMapper objectMapper) {
         this(
                 properties.rateLimit().authRequests(),
