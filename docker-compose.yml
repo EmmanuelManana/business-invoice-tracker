@@ -1,0 +1,63 @@
+# `docker compose up --build` starts the database, API and frontend with demo data.
+# Every setting has a safe local default, so no .env file is needed; copy .env.example to .env to
+# override. The defaults are for local demos only. Never deploy with them.
+name: invoice-tracker
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-invoice_tracker}
+      POSTGRES_USER: ${POSTGRES_USER:-invoice_tracker}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-invoice_tracker_local}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend
+      target: runtime
+    image: invoice-tracker-api:local
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-invoice_tracker}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-invoice_tracker}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-invoice_tracker_local}
+      APP_AUTH_JWT_SECRET: ${APP_AUTH_JWT_SECRET:-local-demo-only-jwt-secret-change-me-0123456789}
+      # Served over plain HTTP on localhost, so the refresh cookie cannot be Secure here.
+      APP_AUTH_COOKIE_SECURE: ${APP_AUTH_COOKIE_SECURE:-false}
+      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      APP_OVERDUE_INTERVAL: ${APP_OVERDUE_INTERVAL:-PT1M}
+      APP_DEV_TOOLS_ENABLED: ${APP_DEV_TOOLS_ENABLED:-true}
+      APP_SEED_ENABLED: ${APP_SEED_ENABLED:-true}
+      APP_SEED_DEMO_EMAIL: ${APP_SEED_DEMO_EMAIL:-demo@acme.co.za}
+      APP_SEED_DEMO_PASSWORD: ${APP_SEED_DEMO_PASSWORD:-Demo@12345}
+    ports:
+      - "${API_PORT:-8080}:8080"
+
+  web:
+    build:
+      context: ./frontend
+      target: runtime
+    image: invoice-tracker-web:local
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      API_UPSTREAM: http://api:8080
+    ports:
+      - "${WEB_PORT:-3000}:8080"
+
+volumes:
+  pgdata:

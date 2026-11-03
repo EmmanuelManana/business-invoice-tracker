@@ -1,0 +1,50 @@
+# Test runners in containers (nothing to install locally but Docker).
+#
+#   docker compose -f docker-compose.yml -f docker-compose.test.yml run --rm backend-tests
+#   docker compose -f docker-compose.yml -f docker-compose.test.yml run --rm frontend-tests
+#   docker compose -f docker-compose.yml -f docker-compose.test.yml run --rm e2e
+#
+# Services sit behind the "test" profile, so a plain `docker compose up` never starts them.
+services:
+  # Unit + integration tests. Integration tests start PostgreSQL with Testcontainers, so the
+  # Docker socket is mounted and containers are reached through the host gateway.
+  backend-tests:
+    profiles: [test]
+    build:
+      context: ./backend
+      target: build
+    command: ["./mvnw", "-B", "verify"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - m2:/root/.m2
+    environment:
+      TESTCONTAINERS_HOST_OVERRIDE: host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  frontend-tests:
+    profiles: [test]
+    build:
+      context: ./frontend
+      target: deps
+    # Source from the host; the anonymous volume keeps the container's Linux node_modules.
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: ["sh", "-c", "npm run lint && npm run typecheck && npm test"]
+
+  # Playwright happy path against the running stack (starts it if needed).
+  e2e:
+    profiles: [test]
+    build:
+      context: ./frontend
+      target: e2e
+    depends_on:
+      web:
+        condition: service_healthy
+    environment:
+      E2E_BASE_URL: http://web:8080
+      CI: "true"
+
+volumes:
+  m2:
