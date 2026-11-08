@@ -11,7 +11,6 @@ import com.invoicetracker.domain.user.AppUser;
 import com.invoicetracker.domain.user.RefreshToken;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -62,13 +61,36 @@ final class SpringDataRepositories {
         @Query("select count(i) > 0 from Invoice i where i.businessId = :businessId and i.customer.id = :customerId")
         boolean existsForCustomer(@Param("businessId") UUID businessId, @Param("customerId") UUID customerId);
 
-        @Query("select i.id from Invoice i where i.status in :statuses and i.dueDate < :date order by i.dueDate")
-        List<UUID> findIdsDueBefore(
-                @Param("statuses") Collection<InvoiceStatus> statuses, @Param("date") LocalDate date);
+        // The two job queries compare each invoice with its own business's date: the real date
+        // plus that business's demo clock offset.
+        @Query(
+                nativeQuery = true,
+                value =
+                        """
+                        SELECT i.id FROM invoices i JOIN businesses b ON b.id = i.business_id
+                        WHERE i.status IN ('SENT', 'PARTIALLY_PAID')
+                          AND i.due_date < CAST(:today AS date) + b.clock_offset_days
+                        ORDER BY i.due_date
+                        """)
+        List<UUID> findIdsToMarkOverdue(@Param("today") LocalDate realToday);
 
-        @Query("select i.id from Invoice i where i.status in :statuses and i.dueDate <= :date order by i.dueDate")
-        List<UUID> findIdsDueOnOrBefore(
-                @Param("statuses") Collection<InvoiceStatus> statuses, @Param("date") LocalDate date);
+        @Query(
+                nativeQuery = true,
+                value =
+                        """
+                        SELECT i.id FROM invoices i JOIN businesses b ON b.id = i.business_id
+                        WHERE i.status IN ('SENT', 'PARTIALLY_PAID', 'OVERDUE')
+                          AND i.due_date <= CAST(:today AS date) + b.clock_offset_days + :leadDays
+                        ORDER BY i.due_date
+                        """)
+        List<UUID> findOpenIdsDueSoonOrLate(@Param("today") LocalDate realToday, @Param("leadDays") int leadDays);
+
+        @Query("select i.id from Invoice i where i.businessId = :businessId and i.status = :status"
+                + " and i.dueDate >= :today")
+        List<UUID> findIdsByStatusDueOnOrAfter(
+                @Param("businessId") UUID businessId,
+                @Param("status") InvoiceStatus status,
+                @Param("today") LocalDate today);
     }
 
     interface NotificationJpa extends JpaRepository<Notification, UUID> {

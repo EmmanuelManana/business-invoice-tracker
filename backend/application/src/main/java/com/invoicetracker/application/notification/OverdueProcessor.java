@@ -37,8 +37,8 @@ import org.springframework.transaction.support.TransactionOperations;
  * </ol>
  *
  * Every invoice is handled in its own transaction, so a bad record is logged and skipped without
- * blocking the rest. All time comes from the injected {@link Clock}, which is what lets tests and
- * the dev tools move time forward.
+ * blocking the rest. Each invoice is judged against its own business's date (real time plus that
+ * business's demo offset), so one business using the time machine never affects another.
  */
 @Component
 public class OverdueProcessor {
@@ -88,21 +88,20 @@ public class OverdueProcessor {
     }
 
     private OverdueRunResult runExclusively() {
-        Instant now = clock.instant();
-        LocalDate today = LocalDate.now(clock);
+        LocalDate realToday = LocalDate.now(clock);
         var counters = new Counters();
 
-        for (UUID id : invoices.findIdsToMarkOverdue(today)) {
-            safely(id, counters, () -> markOverdue(id, today, now, counters));
+        for (UUID id : invoices.findIdsToMarkOverdue(realToday)) {
+            safely(id, counters, () -> markOverdue(id, counters));
         }
-        for (UUID id : invoices.findOpenIdsDueOnOrBefore(today.plusDays(schedule.leadDays()))) {
-            safely(id, counters, () -> queueReminders(id, today, now, counters));
+        for (UUID id : invoices.findOpenIdsDueSoonOrLate(realToday, schedule.leadDays())) {
+            safely(id, counters, () -> queueReminders(id, counters));
         }
         NotificationDispatcher.DispatchResult dispatched = dispatcher.dispatchPending();
 
         var result = new OverdueRunResult(
-                now,
-                today,
+                clock.instant(),
+                realToday,
                 counters.markedOverdue,
                 counters.remindersQueued,
                 counters.alertsQueued,
@@ -118,8 +117,7 @@ public class OverdueProcessor {
                         > 0
                 || result.errors() > 0) {
             log.info(
-                    "Overdue run for {}: {} marked overdue, {} reminders + {} alerts queued, {} sent, {} failed, {} skipped, {} errors",
-                    today,
+                    "Overdue run: {} marked overdue, {} reminders + {} alerts queued, {} sent, {} failed, {} skipped, {} errors",
                     result.invoicesMarkedOverdue(),
                     result.remindersQueued(),
                     result.alertsQueued(),
@@ -128,43 +126,45 @@ public class OverdueProcessor {
                     result.notificationsSkipped(),
                     result.errors());
         } else {
-            log.debug("Overdue run for {}: nothing to do", today);
+            log.debug("Overdue run: nothing to do");
         }
         return result;
     }
 
-    private void markOverdue(UUID id, LocalDate today, Instant now, Counters counters) {
+    private void markOverdue(UUID id, Counters counters) {
         tx.executeWithoutResult(status -> invoices.findById(id).ifPresent(invoice -> {
+            Business business = business(invoice);
+            LocalDate today = business.today(clock);
+            Instant now = business.now(clock);
             if (!invoice.markOverdueIfDue(today, now)) {
                 return;
             }
             invoices.save(invoice);
             counters.markedOverdue++;
             if (!notifications.exists(invoice.getId(), Notification.OVERDUE_ALERT_STAGE, NotificationChannel.IN_APP)) {
-                notifications.save(composer.overdueAlert(invoice, business(invoice), today, now));
+                notifications.save(composer.overdueAlert(invoice, business, today, now));
                 counters.alertsQueued++;
             }
         }));
     }
 
-    private void queueReminders(UUID id, LocalDate today, Instant now, Counters counters) {
+    private void queueReminders(UUID id, Counters counters) {
         tx.executeWithoutResult(status -> invoices.findById(id).ifPresent(invoice -> {
             if (!invoice.getStatus().isOpen()) {
                 return;
             }
+            Business business = business(invoice);
+            LocalDate today = business.today(clock);
             Optional<ReminderStage> stage = schedule.latestDueStage(invoice.getDueDate(), today);
             if (stage.isEmpty()) {
                 return;
             }
-            Business business = null;
             for (NotificationChannel channel : channelsFor(invoice.getCustomer())) {
                 if (notifications.exists(invoice.getId(), stage.get().code(), channel)) {
                     continue;
                 }
-                if (business == null) {
-                    business = business(invoice);
-                }
-                notifications.save(composer.paymentReminder(invoice, business, stage.get(), channel, today, now));
+                notifications.save(
+                        composer.paymentReminder(invoice, business, stage.get(), channel, today, business.now(clock)));
                 counters.remindersQueued++;
             }
         }));

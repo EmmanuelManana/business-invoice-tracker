@@ -40,7 +40,7 @@ class OverdueProcessorTest {
 
     private final MutableClock clock = new MutableClock(START, ZONE);
     private final InMemoryRepositories.Businesses businesses = new InMemoryRepositories.Businesses();
-    private final InMemoryRepositories.Invoices invoices = new InMemoryRepositories.Invoices();
+    private final InMemoryRepositories.Invoices invoices = new InMemoryRepositories.Invoices(businesses);
     private final InMemoryRepositories.Notifications notifications = new InMemoryRepositories.Notifications();
     private final RecordingSender email = new RecordingSender(NotificationChannel.EMAIL);
     private final RecordingSender sms = new RecordingSender(NotificationChannel.SMS);
@@ -66,8 +66,8 @@ class OverdueProcessorTest {
                 "Dear %s, %s %s is due"
                         .formatted(model.get("customerName"), model.get("currency"), model.get("balanceDue"))));
         TransactionOperations tx = TransactionOperations.withoutTransaction();
-        var dispatcher =
-                new NotificationDispatcher(notifications, invoices, List.of(email, sms, inApp), tx, settings, clock);
+        var dispatcher = new NotificationDispatcher(
+                notifications, invoices, businesses, List.of(email, sms, inApp), tx, settings, clock);
         return new OverdueProcessor(
                 invoices, businesses, notifications, composer, dispatcher, tx, jobLock, settings, clock);
     }
@@ -81,9 +81,7 @@ class OverdueProcessorTest {
         Invoice invoice = Invoice.createDraft(
                 business.getId(),
                 customer,
-                "INV-2026-%04d"
-                        .formatted(
-                                invoices.findOpenIdsDueOnOrBefore(LocalDate.MAX).size() + 1),
+                "INV-2026-%04d".formatted(invoices.count() + 1),
                 today,
                 today.plusDays(days),
                 "ZAR",
@@ -99,6 +97,37 @@ class OverdueProcessorTest {
         return notifications.all().stream()
                 .filter(n -> n.getInvoiceId().equals(invoice.getId()))
                 .toList();
+    }
+
+    @Test
+    void eachBusinessIsJudgedByItsOwnClock() {
+        Invoice ours = sentInvoiceDueInDays(customerWithoutPhone, 3);
+        Business other = businesses.save(Business.register("Other Co", "other@co.test", START));
+        Customer otherCustomer = Customer.create(other.getId(), "Wayne", "ap@wayne.test", null, Address.empty(), START);
+        LocalDate today = LocalDate.now(clock);
+        Invoice theirs = Invoice.createDraft(
+                other.getId(),
+                otherCustomer,
+                "INV-2026-0099",
+                today,
+                today.plusDays(5), // outside the 3-day reminder window
+                "ZAR",
+                null,
+                List.of(new LineItemDraft("Work", BigDecimal.ONE, new BigDecimal("500"), BigDecimal.ZERO)),
+                clock.instant());
+        theirs.send(clock.instant());
+        invoices.save(theirs);
+
+        business.advanceClock(10); // only our business uses the time machine
+
+        OverdueRunResult result = processor().run();
+
+        assertThat(ours.getStatus()).isEqualTo(InvoiceStatus.OVERDUE);
+        assertThat(theirs.getStatus())
+                .as("another business's dates are unaffected")
+                .isEqualTo(InvoiceStatus.SENT);
+        assertThat(notificationsFor(theirs)).isEmpty();
+        assertThat(result.invoicesMarkedOverdue()).isEqualTo(1);
     }
 
     @Test

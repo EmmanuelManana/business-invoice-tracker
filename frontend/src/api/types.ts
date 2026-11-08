@@ -222,16 +222,24 @@ export interface DashboardSummary {
   }[];
 }
 
+/** The caller's business calendar (the demo time machine is per business). */
 export interface ClockStatus {
   now: string;
   today: string;
   offsetDays: number;
-  offset: string;
+  /** Only set by a reset: invoices that were overdue only in simulated time. */
+  invoicesNoLongerOverdue: number;
+}
+
+/** The business's current date, for date defaults and validation. */
+export interface BusinessDate {
+  today: string;
+  simulatedDays: number;
 }
 
 export interface OverdueRunResult {
   ranAt: string;
-  businessDate: string;
+  serverDate: string;
   invoicesMarkedOverdue: number;
   remindersQueued: number;
   alertsQueued: number;

@@ -278,6 +278,43 @@ class InvoiceTest {
         }
 
         @Test
+        void overdueIsClearedWhenTheDueDateHasNotPassed() {
+            Invoice unpaid = sentInvoice("100");
+            unpaid.markOverdueIfDue(DUE.plusDays(5), NOW); // simulated: 5 days after the due date
+            Invoice partlyPaid = sentInvoice("100");
+            partlyPaid.recordPayment(new BigDecimal("10"), ISSUE, PaymentMethod.EFT, null, "k", NOW);
+            partlyPaid.markOverdueIfDue(DUE.plusDays(5), NOW);
+
+            // Clock reset: back to a date on or before the due date.
+            assertThat(unpaid.clearOverdueIfNotYetDue(DUE, NOW)).isTrue();
+            assertThat(partlyPaid.clearOverdueIfNotYetDue(DUE.minusDays(3), NOW))
+                    .isTrue();
+
+            assertThat(unpaid.getStatus()).isEqualTo(InvoiceStatus.SENT);
+            assertThat(unpaid.getOverdueAt()).isNull();
+            assertThat(partlyPaid.getStatus()).isEqualTo(InvoiceStatus.PARTIALLY_PAID);
+            assertThat(unpaid.getActivities())
+                    .extracting(InvoiceActivity::getType)
+                    .endsWith(ActivityType.BECAME_OVERDUE, ActivityType.OVERDUE_CLEARED);
+        }
+
+        @Test
+        void overdueStaysWhenTheDueDateReallyHasPassed() {
+            Invoice invoice = sentInvoice("100");
+            invoice.markOverdueIfDue(DUE.plusDays(5), NOW);
+
+            assertThat(invoice.clearOverdueIfNotYetDue(DUE.plusDays(1), NOW)).isFalse();
+            assertThat(invoice.getStatus()).isEqualTo(InvoiceStatus.OVERDUE);
+
+            Invoice paid = sentInvoice("100");
+            paid.recordPayment(new BigDecimal("100"), ISSUE, PaymentMethod.EFT, null, "k", NOW);
+            assertThat(paid.clearOverdueIfNotYetDue(ISSUE, NOW))
+                    .as("only OVERDUE is touched")
+                    .isFalse();
+            assertThat(paid.getStatus()).isEqualTo(InvoiceStatus.PAID);
+        }
+
+        @Test
         void markingOverdueIsIdempotent() {
             Invoice invoice = sentInvoice("100");
             invoice.markOverdueIfDue(DUE.plusDays(1), NOW);

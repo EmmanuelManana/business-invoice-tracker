@@ -7,6 +7,8 @@ public enum ActivityType {
     PAYMENT_RECORDED,
     PAID,
     BECAME_OVERDUE,
+    /** An overdue status was undone because the demo clock was moved back before the due date. */
+    OVERDUE_CLEARED,
     REMINDER_SENT,
     CANCELLED
 }

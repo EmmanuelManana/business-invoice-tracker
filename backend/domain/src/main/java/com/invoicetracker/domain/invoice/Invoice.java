@@ -277,6 +277,30 @@ public class Invoice {
         return true;
     }
 
+    /**
+     * Reverses an OVERDUE status when the due date has not actually passed on {@code today}. This
+     * only happens when the demo clock is moved back to real time: invoices that went overdue in
+     * simulated time return to SENT (or PARTIALLY_PAID if money was received).
+     *
+     * <p>Deliberately not part of the normal status machine: it is a correction, not a step a user
+     * can take.
+     *
+     * @return true if the status changed
+     */
+    public boolean clearOverdueIfNotYetDue(LocalDate today, Instant now) {
+        if (status != InvoiceStatus.OVERDUE || dueDate.isBefore(today)) {
+            return false;
+        }
+        status = amountPaid.signum() > 0 ? InvoiceStatus.PARTIALLY_PAID : InvoiceStatus.SENT;
+        overdueAt = null;
+        updatedAt = now;
+        log(
+                ActivityType.OVERDUE_CLEARED,
+                "No longer overdue: due %s has not passed yet (demo clock reset)".formatted(dueDate),
+                now);
+        return true;
+    }
+
     public void cancel(String reason, Instant now) {
         transitionTo(InvoiceStatus.CANCELLED);
         cancelledAt = now;

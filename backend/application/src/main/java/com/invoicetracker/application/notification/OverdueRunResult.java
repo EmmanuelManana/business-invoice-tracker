@@ -10,7 +10,7 @@ import java.time.LocalDate;
  */
 public record OverdueRunResult(
         Instant ranAt,
-        LocalDate businessDate,
+        LocalDate serverDate,
         int invoicesMarkedOverdue,
         int remindersQueued,
         int alertsQueued,
@@ -20,7 +20,7 @@ public record OverdueRunResult(
         int errors,
         boolean skipped) {
 
-    static OverdueRunResult skipped(Instant ranAt, LocalDate businessDate) {
-        return new OverdueRunResult(ranAt, businessDate, 0, 0, 0, 0, 0, 0, 0, true);
+    static OverdueRunResult skipped(Instant ranAt, LocalDate serverDate) {
+        return new OverdueRunResult(ranAt, serverDate, 0, 0, 0, 0, 0, 0, 0, true);
     }
 }

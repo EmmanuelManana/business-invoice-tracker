@@ -34,6 +34,16 @@ public class BusinessProfileService {
         return BusinessProfileDto.from(load(user));
     }
 
+    /**
+     * The business's current date, which the frontend uses for date defaults and validation, so
+     * browser and server agree on "today" (including when the demo clock has been moved).
+     */
+    @Transactional(readOnly = true)
+    public BusinessDate today(CurrentUser user) {
+        Business business = load(user);
+        return new BusinessDate(business.today(clock), business.getClockOffsetDays());
+    }
+
     @Transactional
     public BusinessProfileDto update(CurrentUser user, UpdateBusinessProfileCommand command) {
         Business business = load(user);
@@ -67,6 +77,9 @@ public class BusinessProfileService {
             @Valid AddressDto address,
             @NotBlank @Pattern(regexp = "^[A-Z]{3}$", message = "must be a 3-letter ISO currency code") String currency,
             @Min(0) @Max(365) int paymentTermsDays) {}
+
+    /** @param simulatedDays how far the demo time machine has moved this business ahead (usually 0) */
+    public record BusinessDate(java.time.LocalDate today, int simulatedDays) {}
 
     public record BusinessProfileDto(
             UUID id,

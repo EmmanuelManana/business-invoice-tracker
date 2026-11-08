@@ -1,6 +1,7 @@
 package com.invoicetracker.application.notification;
 
 import com.invoicetracker.application.config.ApplicationSettings;
+import com.invoicetracker.application.port.BusinessRepository;
 import com.invoicetracker.application.port.InvoiceRepository;
 import com.invoicetracker.application.port.NotificationRepository;
 import com.invoicetracker.application.port.NotificationSender;
@@ -40,6 +41,7 @@ public class NotificationDispatcher {
 
     private final NotificationRepository notifications;
     private final InvoiceRepository invoices;
+    private final BusinessRepository businesses;
     private final Map<NotificationChannel, NotificationSender> senders = new EnumMap<>(NotificationChannel.class);
     private final TransactionOperations tx;
     private final ApplicationSettings settings;
@@ -48,12 +50,14 @@ public class NotificationDispatcher {
     public NotificationDispatcher(
             NotificationRepository notifications,
             InvoiceRepository invoices,
+            BusinessRepository businesses,
             List<NotificationSender> senders,
             TransactionOperations tx,
             ApplicationSettings settings,
             Clock clock) {
         this.notifications = notifications;
         this.invoices = invoices;
+        this.businesses = businesses;
         senders.forEach(s -> this.senders.put(s.channel(), s));
         this.tx = tx;
         this.settings = settings;
@@ -97,7 +101,11 @@ public class NotificationDispatcher {
         }
 
         NotificationSender sender = senders.get(notification.getChannel());
-        Instant now = clock.instant();
+        // Business time, so the activity log stays in order when the demo clock is moved.
+        Instant now = businesses
+                .findById(notification.getBusinessId())
+                .map(b -> b.now(clock))
+                .orElseGet(clock::instant);
         try {
             if (sender == null) {
                 throw new IllegalStateException("No sender configured for channel " + notification.getChannel());

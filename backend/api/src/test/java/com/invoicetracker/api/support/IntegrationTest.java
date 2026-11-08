@@ -2,11 +2,9 @@ package com.invoicetracker.api.support;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.invoicetracker.application.port.ClockControl;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.junit.jupiter.api.AfterEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
@@ -48,15 +46,10 @@ public abstract class IntegrationTest {
     @Autowired
     protected ObjectMapper json;
 
-    @Autowired
-    private ClockControl clockControl;
-
-    @AfterEach
-    void resetClock() {
-        clockControl.reset();
-    }
-
-    /** Today in the business time zone (matches the server's notion of "today"). */
+    /**
+     * Today in the application time zone, for a business that hasn't moved its demo clock. Each
+     * test registers its own business, so one test's clock changes never leak into another.
+     */
     protected static java.time.LocalDate today() {
         return java.time.LocalDate.now(java.time.ZoneId.of("Africa/Johannesburg"));
     }
@@ -166,13 +159,18 @@ public abstract class IntegrationTest {
     }
 
     protected ResponseEntity<JsonNode> pay(Session session, String invoiceId, String amount, String key) {
+        return pay(session, invoiceId, amount, key, today().toString());
+    }
+
+    protected ResponseEntity<JsonNode> pay(
+            Session session, String invoiceId, String amount, String key, String paidOn) {
         var headers = new HttpHeaders();
         headers.set("Idempotency-Key", key);
         return call(
                 HttpMethod.POST,
                 "/api/v1/invoices/" + invoiceId + "/payments",
                 session.token(),
-                Map.of("amount", amount, "paidOn", today().toString(), "method", "EFT"),
+                Map.of("amount", amount, "paidOn", paidOn, "method", "EFT"),
                 headers);
     }
 }

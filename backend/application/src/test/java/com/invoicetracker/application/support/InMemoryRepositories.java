@@ -48,6 +48,30 @@ public final class InMemoryRepositories {
 
     public static class Invoices implements InvoiceRepository {
         private final Map<UUID, Invoice> store = new LinkedHashMap<>();
+        private final Businesses businesses;
+
+        public Invoices() {
+            this(null);
+        }
+
+        /** With {@code businesses}, the job queries apply each business's clock offset like the SQL does. */
+        public Invoices(Businesses businesses) {
+            this.businesses = businesses;
+        }
+
+        public int count() {
+            return store.size();
+        }
+
+        private LocalDate todayFor(Invoice invoice, LocalDate realToday) {
+            int offset = businesses == null
+                    ? 0
+                    : businesses
+                            .findById(invoice.getBusinessId())
+                            .map(Business::getClockOffsetDays)
+                            .orElse(0);
+            return realToday.plusDays(offset);
+        }
 
         @Override
         public Optional<Invoice> findByIdAndBusinessId(UUID id, UUID businessId) {
@@ -78,19 +102,29 @@ public final class InMemoryRepositories {
         }
 
         @Override
-        public List<UUID> findIdsToMarkOverdue(LocalDate today) {
+        public List<UUID> findIdsToMarkOverdue(LocalDate realToday) {
             return store.values().stream()
                     .filter(i -> i.getStatus() == InvoiceStatus.SENT || i.getStatus() == InvoiceStatus.PARTIALLY_PAID)
-                    .filter(i -> i.getDueDate().isBefore(today))
+                    .filter(i -> i.getDueDate().isBefore(todayFor(i, realToday)))
                     .map(Invoice::getId)
                     .toList();
         }
 
         @Override
-        public List<UUID> findOpenIdsDueOnOrBefore(LocalDate date) {
+        public List<UUID> findOpenIdsDueSoonOrLate(LocalDate realToday, int leadDays) {
             return store.values().stream()
                     .filter(i -> i.getStatus().isOpen())
-                    .filter(i -> !i.getDueDate().isAfter(date))
+                    .filter(i -> !i.getDueDate().isAfter(todayFor(i, realToday).plusDays(leadDays)))
+                    .map(Invoice::getId)
+                    .toList();
+        }
+
+        @Override
+        public List<UUID> findOverdueIdsNotYetDue(UUID businessId, LocalDate today) {
+            return store.values().stream()
+                    .filter(i -> i.getBusinessId().equals(businessId))
+                    .filter(i -> i.getStatus() == InvoiceStatus.OVERDUE)
+                    .filter(i -> !i.getDueDate().isBefore(today))
                     .map(Invoice::getId)
                     .toList();
         }

@@ -13,7 +13,6 @@ import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -24,9 +23,6 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 class JpaInvoiceRepository implements InvoiceRepository {
-
-    private static final EnumSet<InvoiceStatus> OVERDUE_CANDIDATES =
-            EnumSet.of(InvoiceStatus.SENT, InvoiceStatus.PARTIALLY_PAID);
 
     private final InvoiceJpa jpa;
 
@@ -64,13 +60,18 @@ class JpaInvoiceRepository implements InvoiceRepository {
     }
 
     @Override
-    public List<UUID> findIdsToMarkOverdue(LocalDate today) {
-        return jpa.findIdsDueBefore(OVERDUE_CANDIDATES, today);
+    public List<UUID> findIdsToMarkOverdue(LocalDate realToday) {
+        return jpa.findIdsToMarkOverdue(realToday);
     }
 
     @Override
-    public List<UUID> findOpenIdsDueOnOrBefore(LocalDate date) {
-        return jpa.findIdsDueOnOrBefore(InvoiceStatus.OPEN, date);
+    public List<UUID> findOpenIdsDueSoonOrLate(LocalDate realToday, int leadDays) {
+        return jpa.findOpenIdsDueSoonOrLate(realToday, leadDays);
+    }
+
+    @Override
+    public List<UUID> findOverdueIdsNotYetDue(UUID businessId, LocalDate today) {
+        return jpa.findIdsByStatusDueOnOrAfter(businessId, InvoiceStatus.OVERDUE, today);
     }
 
     private static String property(SortField field) {

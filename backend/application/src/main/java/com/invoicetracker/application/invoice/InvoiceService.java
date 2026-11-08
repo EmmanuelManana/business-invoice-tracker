@@ -1,5 +1,6 @@
 package com.invoicetracker.application.invoice;
 
+import com.invoicetracker.application.common.BusinessCalendar;
 import com.invoicetracker.application.common.CurrentUser;
 import com.invoicetracker.application.common.NotFoundException;
 import com.invoicetracker.application.common.PageResult;
@@ -26,7 +27,6 @@ import com.invoicetracker.domain.common.BusinessRuleViolationException;
 import com.invoicetracker.domain.customer.Customer;
 import com.invoicetracker.domain.invoice.Invoice;
 import com.invoicetracker.domain.invoice.LineItemDraft;
-import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -46,7 +46,7 @@ public class InvoiceService {
     private final InvoiceNumberGenerator numberGenerator;
     private final InvoiceDocumentRenderer documentRenderer;
     private final ApplicationSettings settings;
-    private final Clock clock;
+    private final BusinessCalendar calendar;
 
     public InvoiceService(
             InvoiceRepository invoices,
@@ -55,32 +55,32 @@ public class InvoiceService {
             InvoiceNumberGenerator numberGenerator,
             InvoiceDocumentRenderer documentRenderer,
             ApplicationSettings settings,
-            Clock clock) {
+            BusinessCalendar calendar) {
         this.invoices = invoices;
         this.customers = customers;
         this.businesses = businesses;
         this.numberGenerator = numberGenerator;
         this.documentRenderer = documentRenderer;
         this.settings = settings;
-        this.clock = clock;
+        this.calendar = calendar;
     }
 
     @Transactional(readOnly = true)
     public PageResult<InvoiceSummary> search(CurrentUser user, InvoiceSearchCriteria criteria) {
-        LocalDate today = today();
+        LocalDate today = calendar.today(user.businessId());
         return invoices.search(user.businessId(), criteria).map(i -> InvoiceSummary.from(i, today));
     }
 
     @Transactional(readOnly = true)
     public InvoiceDetail get(CurrentUser user, UUID id) {
-        return InvoiceDetail.from(load(user, id), today());
+        return InvoiceDetail.from(load(user, id), calendar.today(user.businessId()));
     }
 
     @Transactional
     public InvoiceDetail create(CurrentUser user, SaveInvoiceCommand command) {
         Business business = business(user);
         Customer customer = customer(user, command.customerId());
-        LocalDate issueDate = command.issueDate() != null ? command.issueDate() : today();
+        LocalDate issueDate = command.issueDate() != null ? command.issueDate() : calendar.today(user.businessId());
         LocalDate dueDate = resolveDueDate(command, issueDate, business);
         String number = numberGenerator.next(business.getId(), issueDate.getYear());
 
@@ -93,10 +93,10 @@ public class InvoiceService {
                 business.getCurrency(),
                 Text.clean(command.notes()),
                 toDrafts(command.lineItems()),
-                clock.instant());
+                calendar.now(user.businessId()));
         Invoice saved = invoices.save(invoice);
         log.info("Created invoice {} ({}) for business {}", saved.getNumber(), saved.getId(), business.getId());
-        return InvoiceDetail.from(saved, today());
+        return InvoiceDetail.from(saved, calendar.today(user.businessId()));
     }
 
     /**
@@ -120,24 +120,24 @@ public class InvoiceService {
                 dueDate,
                 Text.clean(command.notes()),
                 toDrafts(command.lineItems()),
-                clock.instant());
-        return InvoiceDetail.from(invoices.save(invoice), today());
+                calendar.now(user.businessId()));
+        return InvoiceDetail.from(invoices.save(invoice), calendar.today(user.businessId()));
     }
 
     @Transactional
     public InvoiceDetail send(CurrentUser user, UUID id) {
         Invoice invoice = load(user, id);
-        invoice.send(clock.instant());
+        invoice.send(calendar.now(user.businessId()));
         // An invoice sent after its due date is overdue straight away.
-        invoice.markOverdueIfDue(today(), clock.instant());
-        return InvoiceDetail.from(invoices.save(invoice), today());
+        invoice.markOverdueIfDue(calendar.today(user.businessId()), calendar.now(user.businessId()));
+        return InvoiceDetail.from(invoices.save(invoice), calendar.today(user.businessId()));
     }
 
     @Transactional
     public InvoiceDetail cancel(CurrentUser user, UUID id, CancelInvoiceCommand command) {
         Invoice invoice = load(user, id);
-        invoice.cancel(command == null ? null : Text.clean(command.reason()), clock.instant());
-        return InvoiceDetail.from(invoices.save(invoice), today());
+        invoice.cancel(command == null ? null : Text.clean(command.reason()), calendar.now(user.businessId()));
+        return InvoiceDetail.from(invoices.save(invoice), calendar.today(user.businessId()));
     }
 
     @Transactional
@@ -147,7 +147,7 @@ public class InvoiceService {
             throw new BusinessRuleViolationException(
                     "idempotency_key_required", "An Idempotency-Key header (1-100 characters) is required");
         }
-        if (command.paidOn().isAfter(today())) {
+        if (command.paidOn().isAfter(calendar.today(user.businessId()))) {
             throw new BusinessRuleViolationException("payment_in_future", "Payment date cannot be in the future");
         }
         Invoice invoice = load(user, id);
@@ -157,13 +157,15 @@ public class InvoiceService {
                 command.method(),
                 Text.clean(command.reference()),
                 idempotencyKey.trim(),
-                clock.instant());
+                calendar.now(user.businessId()));
         Invoice saved = result.replayed() ? invoice : invoices.save(invoice);
         if (!result.replayed()) {
             log.info("Recorded payment {} on invoice {}", result.payment().getId(), saved.getNumber());
         }
         return new PaymentOutcome(
-                InvoiceDetail.from(saved, today()), PaymentView.from(result.payment()), result.replayed());
+                InvoiceDetail.from(saved, calendar.today(user.businessId())),
+                PaymentView.from(result.payment()),
+                result.replayed());
     }
 
     @Transactional(readOnly = true)
@@ -210,9 +212,5 @@ public class InvoiceService {
         return businesses
                 .findById(user.businessId())
                 .orElseThrow(() -> new NotFoundException("Business", user.businessId()));
-    }
-
-    private LocalDate today() {
-        return LocalDate.now(clock);
     }
 }

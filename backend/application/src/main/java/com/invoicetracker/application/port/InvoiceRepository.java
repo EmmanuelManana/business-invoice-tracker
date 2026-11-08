@@ -22,9 +22,18 @@ public interface InvoiceRepository {
     /** Persists and flushes, so the returned entity carries its new version. */
     Invoice save(Invoice invoice);
 
-    /** SENT or PARTIALLY_PAID invoices whose due date is before {@code today} (all tenants). */
-    List<UUID> findIdsToMarkOverdue(LocalDate today);
+    /**
+     * SENT or PARTIALLY_PAID invoices (all tenants) whose due date is before their own business's
+     * today, i.e. {@code realToday} plus that business's clock offset.
+     */
+    List<UUID> findIdsToMarkOverdue(LocalDate realToday);
 
-    /** Open (SENT, PARTIALLY_PAID, OVERDUE) invoices due on or before {@code date} (all tenants). */
-    List<UUID> findOpenIdsDueOnOrBefore(LocalDate date);
+    /**
+     * Open invoices (all tenants) due on or before their business's today plus {@code leadDays},
+     * i.e. the ones that may need a reminder.
+     */
+    List<UUID> findOpenIdsDueSoonOrLate(LocalDate realToday, int leadDays);
+
+    /** OVERDUE invoices of one business whose due date has not passed on {@code today}. */
+    List<UUID> findOverdueIdsNotYetDue(UUID businessId, LocalDate today);
 }

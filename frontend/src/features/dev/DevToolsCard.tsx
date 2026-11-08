@@ -35,8 +35,13 @@ export function DevToolsCard() {
   });
   const reset = useMutation({
     mutationFn: devApi.reset,
-    onSuccess: () => {
-      toast.info('Clock reset to real time');
+    onSuccess: (status) => {
+      const reopened = status.invoicesNoLongerOverdue;
+      toast.info(
+        reopened > 0
+          ? `Clock reset to real time. ${reopened} invoice(s) are no longer overdue.`
+          : 'Clock reset to real time',
+      );
       refreshEverything();
     },
     onError: (e) => toast.error(errorMessage(e)),
@@ -69,6 +74,7 @@ export function DevToolsCard() {
             Business date: <strong>{formatDate(clock.data.today)}</strong>
             {clock.data.offsetDays > 0 && ` (+${clock.data.offsetDays} days simulated)`}
           </p>
+          <p className="mt-0.5 text-xs text-amber-900/70">Only changes dates for your business.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {[1, 7, 30].map((days) => (
