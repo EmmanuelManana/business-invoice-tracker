@@ -93,7 +93,7 @@ export function InvoicesPage() {
         <form
           role="search"
           aria-label="Filter invoices"
-          className="grid gap-3 border-b border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-5"
+          className="grid gap-3 border-b border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-6"
           onSubmit={(e) => e.preventDefault()}
         >
           <div className="relative lg:col-span-2">
@@ -149,28 +149,28 @@ export function InvoicesPage() {
               ))}
             </select>
           </div>
-          <div className="flex gap-2">
-            <div className="flex-1">
+          <div className="grid grid-cols-2 gap-2 sm:col-span-2">
+            <div className="min-w-0">
               <label htmlFor="from-filter" className="sr-only">
                 Issued from
               </label>
               <input
                 id="from-filter"
                 type="date"
-                className="input"
+                className="input min-w-0"
                 value={query.from ?? ''}
                 onChange={(e) => update({ from: e.target.value || null })}
                 title="Issued from"
               />
             </div>
-            <div className="flex-1">
+            <div className="min-w-0">
               <label htmlFor="to-filter" className="sr-only">
                 Issued to
               </label>
               <input
                 id="to-filter"
                 type="date"
-                className="input"
+                className="input min-w-0"
                 value={query.to ?? ''}
                 onChange={(e) => update({ to: e.target.value || null })}
                 title="Issued to"
