@@ -90,7 +90,7 @@ export function InvoicesPage() {
         <form
           role="search"
           aria-label="Filter invoices"
-          className="grid gap-3 border-b border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-7"
+          className="grid gap-3 border-b border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-6"
           onSubmit={(e) => e.preventDefault()}
         >
           <div className="relative lg:col-span-2">
@@ -128,7 +128,7 @@ export function InvoicesPage() {
               ))}
             </select>
           </div>
-          <div className="sm:col-span-2">
+          <div className="sm:col-span-2 lg:col-span-3">
             <label htmlFor="customer-filter" className="sr-only">
               Customer
             </label>

@@ -287,7 +287,7 @@ All six defects have been fixed. Each fix is covered by automated tests; the man
 | Defect | Fix | Commit | Verified by |
 |---|---|---|---|
 | D1: Overdue stays after the clock is reset | Resetting a business's clock returns invoices whose due date hasn't really passed to Sent / Partially paid, with an activity entry | `e0feb14` | `DevClockIT.resettingTheClockReturnsNotYetDueInvoicesFromOverdue`, `InvoiceTest` |
-| D2: Invoice filters overflow on desktop | Date filters get their own two columns and can shrink | `610f844` | Checked in the browser at 1150px wide |
+| D2: Invoice filters overflow on desktop | Date filters get their own row and can shrink; the customer filter is wider | `610f844` | `e2e/layout.spec.ts` (no sideways scroll at 1150px; screenshot reviewed) |
 | D3: Time machine shared by all businesses | Each business has its own clock offset; the overdue job judges each invoice by its own business's date | `e0feb14` | `DevClockIT.movingTheClockOnlyAffectsTheCallersBusiness`, `OverdueProcessorTest.eachBusinessIsJudgedByItsOwnClock` |
 | D4: Old error banner stays during new validation | Every form clears the banner when client validation fails | `475a43d` | `LoginPage.test.tsx` |
 | D5: Delete dialog stays open after refusal | The dialog closes and the toast explains why | `475a43d` | `CustomersPage.test.tsx` |

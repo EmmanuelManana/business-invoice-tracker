@@ -55,10 +55,10 @@ export function CustomerSelect({
   const hiddenCount = (results.data?.totalItems ?? 0) - items.length;
 
   return (
-    <div className={variant === 'inline' ? 'flex gap-2' : 'space-y-2'}>
+    <div className={variant === 'inline' ? 'flex flex-col gap-2 sm:flex-row' : 'space-y-2'}>
       <input
         type="search"
-        className={clsx('input', variant === 'inline' && 'w-2/5 min-w-0')}
+        className={clsx('input', variant === 'inline' && 'min-w-0 sm:w-2/5')}
         placeholder="Search by name or email"
         aria-label="Filter the list by name or email"
         value={search}
