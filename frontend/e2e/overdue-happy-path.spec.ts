@@ -59,9 +59,19 @@ test('create invoice → simulate overdue → see notification', async ({ page }
   // The bell shows unread notifications and the overdue alert is listed.
   await expect(page.getByTestId('unread-count')).toBeVisible();
   await page.getByRole('link', { name: 'Notifications', exact: true }).click();
-  await expect(
-    page.getByRole('button', { name: new RegExp(`${invoiceNumber} for Karoo Coffee Roasters is overdue`) }),
-  ).toBeVisible();
+  // Moving the clock also triggers reminders for the demo invoices, so the alert can be on a later
+  // page. Page through like a user would.
+  const alert = page.getByRole('button', {
+    name: new RegExp(`${invoiceNumber} for Karoo Coffee Roasters is overdue`),
+  });
+  await expect(page.getByRole('list', { name: 'Notifications' })).toBeVisible();
+  for (let pageNo = 0; pageNo < 10 && !(await alert.isVisible()); pageNo++) {
+    const next = page.getByRole('button', { name: 'Next' });
+    if (!(await next.isEnabled())) break;
+    await next.click();
+    await page.waitForLoadState('networkidle');
+  }
+  await expect(alert).toBeVisible();
 
   // And the invoice itself is now overdue.
   await page.getByRole('link', { name: 'Invoices', exact: true }).click();
