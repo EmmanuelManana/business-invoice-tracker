@@ -17,7 +17,8 @@ export default defineConfig({
     },
   },
   build: {
-    sourcemap: true,
+    // No public source maps in production builds; the dev server still has them.
+    sourcemap: false,
     rollupOptions: {
       output: {
         // Long-lived vendor chunks cache well across deployments of app code.
