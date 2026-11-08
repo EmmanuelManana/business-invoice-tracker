@@ -1,16 +1,17 @@
 import { useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Plus, Trash2 } from 'lucide-react';
-import { useFieldArray, useForm, useWatch } from 'react-hook-form';
-import type { Customer } from '@/api/types';
+import { useController, useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { Button } from '@/components/ui/Button';
 import { Field, FormError } from '@/components/ui/Field';
+import { CustomerSelect } from '@/features/customers/CustomerSelect';
 import { applyServerErrors, errorMessage } from '@/lib/errors';
 import { formatMoney } from '@/lib/format';
 import { emptyLine, invoiceSchema, previewTotals, type InvoiceFormValues } from './invoiceSchema';
 
 interface InvoiceFormProps {
-  customers: Customer[];
+  /** Name of the invoice's current customer when editing (shown even if not in the first page of results). */
+  customerName?: string;
   defaultValues: InvoiceFormValues;
   currency?: string;
   submitLabel: string;
@@ -19,7 +20,7 @@ interface InvoiceFormProps {
 }
 
 export function InvoiceForm({
-  customers,
+  customerName,
   defaultValues,
   currency = 'ZAR',
   submitLabel,
@@ -34,6 +35,7 @@ export function InvoiceForm({
     setError,
     formState: { errors, isSubmitting },
   } = useForm<InvoiceFormValues>({ resolver: zodResolver(invoiceSchema), defaultValues });
+  const { field: customerField } = useController({ control, name: 'customerId' });
   const { fields, append, remove } = useFieldArray({ control, name: 'lineItems' });
   const lines = useWatch({ control, name: 'lineItems' });
   const totals = previewTotals(lines ?? []);
@@ -54,14 +56,12 @@ export function InvoiceForm({
 
       <section className="card grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4">
         <Field label="Customer" error={errors.customerId?.message} required className="sm:col-span-2">
-          <select className="input" {...register('customerId')}>
-            <option value="">Select a customer…</option>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+          <CustomerSelect
+            value={customerField.value}
+            onChange={customerField.onChange}
+            emptyLabel="Select a customer…"
+            selectedName={customerName}
+          />
         </Field>
         <Field label="Issue date" error={errors.issueDate?.message} required>
           <input type="date" className="input" {...register('issueDate')} />

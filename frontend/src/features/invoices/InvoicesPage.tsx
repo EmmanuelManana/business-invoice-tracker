@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { ArrowDown, ArrowUp, Plus, Search } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { customerApi, invoiceApi } from '@/api/endpoints';
+import { invoiceApi } from '@/api/endpoints';
 import { INVOICE_STATUSES, type InvoiceQuery, type InvoiceStatus } from '@/api/types';
 import { Pagination } from '@/components/ui/Pagination';
 import { LoadingState } from '@/components/ui/Spinner';
 import { EmptyState, ErrorState, PageHeader } from '@/components/ui/States';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { formatDate, formatMoney, humaniseStatus } from '@/lib/format';
+import { CustomerSelect } from '@/features/customers/CustomerSelect';
 import { queryKeys } from '@/lib/queryClient';
 import { useDebounced } from '@/lib/useDebounced';
 
@@ -63,10 +64,6 @@ export function InvoicesPage() {
     queryFn: () => invoiceApi.list(query),
     placeholderData: keepPreviousData,
   });
-  const customers = useQuery({
-    queryKey: queryKeys.customerList({ all: true }),
-    queryFn: () => customerApi.list({ size: 100 }),
-  });
 
   function toggleSort(key: SortKey) {
     const nextDirection = sort === key && direction === 'desc' ? 'asc' : 'desc';
@@ -93,7 +90,7 @@ export function InvoicesPage() {
         <form
           role="search"
           aria-label="Filter invoices"
-          className="grid gap-3 border-b border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-6"
+          className="grid gap-3 border-b border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-7"
           onSubmit={(e) => e.preventDefault()}
         >
           <div className="relative lg:col-span-2">
@@ -131,23 +128,17 @@ export function InvoicesPage() {
               ))}
             </select>
           </div>
-          <div>
+          <div className="sm:col-span-2">
             <label htmlFor="customer-filter" className="sr-only">
               Customer
             </label>
-            <select
+            <CustomerSelect
               id="customer-filter"
-              className="input"
+              variant="inline"
               value={query.customerId ?? ''}
-              onChange={(e) => update({ customerId: e.target.value || null })}
-            >
-              <option value="">All customers</option>
-              {customers.data?.items.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+              onChange={(id) => update({ customerId: id || null })}
+              emptyLabel="All customers"
+            />
           </div>
           <div className="grid grid-cols-2 gap-2 sm:col-span-2">
             <div className="min-w-0">

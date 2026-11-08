@@ -1,8 +1,8 @@
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ApiError } from '@/api/client';
+import { ApiError, setSession } from '@/api/client';
 import type { Customer } from '@/api/types';
-import { renderWithProviders } from '@/test/render';
+import { jsonResponse, renderWithProviders } from '@/test/render';
 import { InvoiceForm } from './InvoiceForm';
 import { emptyLine, type InvoiceFormValues } from './invoiceSchema';
 
@@ -27,14 +27,12 @@ const defaults: InvoiceFormValues = {
 const plain = (s: string | null) => (s ?? '').replace(/\s/g, ' ');
 
 function renderForm(onSubmit = vi.fn().mockResolvedValue(undefined)) {
+  // The customer picker searches the API; answer with our one customer.
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+    jsonResponse({ items: customers, page: 0, size: 50, totalItems: 1, totalPages: 1 }),
+  );
   renderWithProviders(
-    <InvoiceForm
-      customers={customers}
-      defaultValues={defaults}
-      submitLabel="Save draft"
-      onSubmit={onSubmit}
-      onCancel={vi.fn()}
-    />,
+    <InvoiceForm defaultValues={defaults} submitLabel="Save draft" onSubmit={onSubmit} onCancel={vi.fn()} />,
   );
   return onSubmit;
 }
@@ -51,6 +49,14 @@ async function fillLine(index: number, description: string, quantity: string, pr
 }
 
 describe('InvoiceForm', () => {
+  beforeEach(() => setSession(null));
+
+  /** Picks a customer once the search results have loaded. */
+  async function chooseCustomer(name: string) {
+    await screen.findByRole('option', { name });
+    await userEvent.selectOptions(screen.getByLabelText(/customer/i), name);
+  }
+
   it('previews totals live as lines are edited', async () => {
     renderForm();
 
@@ -84,7 +90,7 @@ describe('InvoiceForm', () => {
 
   it('enforces the same decimal places as the server', async () => {
     const onSubmit = renderForm();
-    await userEvent.selectOptions(screen.getByLabelText(/customer/i), 'c-1');
+    await chooseCustomer('Globex');
 
     await fillLine(0, 'Design work', '1.0005', '99.999');
     await userEvent.click(screen.getByRole('button', { name: /save draft/i }));
@@ -105,7 +111,7 @@ describe('InvoiceForm', () => {
         }),
       ),
     );
-    await userEvent.selectOptions(screen.getByLabelText(/customer/i), 'c-1');
+    await chooseCustomer('Globex');
     await fillLine(0, 'Design work', '1', '100');
 
     await userEvent.click(screen.getByRole('button', { name: /save draft/i }));
@@ -118,7 +124,7 @@ describe('InvoiceForm', () => {
   it('submits valid values', async () => {
     const onSubmit = renderForm();
 
-    await userEvent.selectOptions(screen.getByLabelText(/customer/i), 'c-1');
+    await chooseCustomer('Globex');
     await fillLine(0, 'Design work', '1', '999.99');
     await userEvent.click(screen.getByRole('button', { name: /save draft/i }));
 

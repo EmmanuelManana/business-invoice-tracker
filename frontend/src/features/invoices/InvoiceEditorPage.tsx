@@ -18,9 +18,10 @@ export function InvoiceEditorPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+  // Only used to tell whether any customers exist; the form searches them itself.
   const customers = useQuery({
-    queryKey: queryKeys.customerList({ all: true }),
-    queryFn: () => customerApi.list({ size: 100 }),
+    queryKey: queryKeys.customerList({ size: 1 }),
+    queryFn: () => customerApi.list({ size: 1 }),
   });
   const business = useQuery({ queryKey: queryKeys.business, queryFn: businessApi.get });
   const { today: businessToday, ready: todayReady } = useBusinessToday();
@@ -114,7 +115,7 @@ export function InvoiceEditorPage() {
       />
       <InvoiceForm
         key={invoice.data?.version ?? 'new'}
-        customers={customers.data?.items ?? []}
+        customerName={invoice.data?.customer.name}
         defaultValues={defaults}
         currency={business.data?.currency}
         submitLabel={isEdit ? 'Save changes' : 'Save draft'}
