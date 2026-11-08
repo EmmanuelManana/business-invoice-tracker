@@ -307,7 +307,11 @@ public class Invoice {
         return payments.stream().filter(p -> p.getIdempotencyKey().equals(key)).findFirst();
     }
 
+    /** What the customer still owes. Nothing is owed on a cancelled invoice. */
     public BigDecimal balanceDue() {
+        if (status == InvoiceStatus.CANCELLED) {
+            return Money.ZERO;
+        }
         return total.subtract(amountPaid);
     }
 

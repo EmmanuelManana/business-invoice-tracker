@@ -138,6 +138,20 @@ class InvoiceTest {
         }
 
         @Test
+        void cancelledInvoiceHasNoBalanceDue() {
+            Invoice partlyPaid = sentInvoice("1000");
+            partlyPaid.recordPayment(new BigDecimal("400"), ISSUE, PaymentMethod.EFT, null, "k", NOW);
+
+            partlyPaid.cancel("written off", NOW);
+
+            assertThat(partlyPaid.balanceDue()).isEqualByComparingTo("0");
+            assertThat(partlyPaid.getAmountPaid())
+                    .as("payments already received are kept")
+                    .isEqualByComparingTo("400");
+            assertThat(partlyPaid.getTotal()).isEqualByComparingTo("1000");
+        }
+
+        @Test
         void unpaidInvoiceCanBeCancelledButPaidCannot() {
             Invoice open = sentInvoice("100");
             open.cancel("Duplicate", NOW);
