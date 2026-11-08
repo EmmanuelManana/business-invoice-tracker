@@ -79,7 +79,7 @@ flowchart TB
 | Module | Contains | Depends on |
 |---|---|---|
 | `domain` | The core model and its rules. `Invoice` owns the status transitions, totals, payments and overdue check. Also `Money`, `ReminderSchedule` and `Notification`. | JPA annotations only |
-| `application` | Use cases such as `InvoiceService`, `AuthService` and `OverdueProcessor`. Commands with validation rules, response DTOs, and **ports**: interfaces like `InvoiceRepository`, `NotificationSender`, `JobLock` and `ClockControl` that the use cases need but don't implement. | domain, Spring context and transactions |
+| `application` | Use cases such as `InvoiceService`, `AuthService` and `OverdueProcessor`. Commands with validation rules, response DTOs, and **ports**: interfaces like `InvoiceRepository`, `NotificationSender`, `JobLock` and `InvoiceDocumentRenderer` that the use cases need but don't implement. | domain, Spring context and transactions |
 | `infrastructure` | The implementations of those ports: Spring Data JPA repositories, Flyway migrations, invoice numbering, SQL queries for the dashboard, JWT signing, password hashing, the simulated senders and message templates, the Postgres job lock, the scheduler, PDF rendering and demo data. | application |
 | `api` | REST controllers, Spring Security, rate limiting, correlation IDs, error mapping, Swagger, and the configuration that wires everything together. | infrastructure |
 
@@ -202,14 +202,19 @@ sequenceDiagram
         end
         P->>D: send anything pending
         loop each pending notification, in its own transaction
-            D->>N: send
-            N-->>D: ok or error
-            D->>DB: mark Sent and log activity,<br/>or keep for retry / mark Failed
+            D->>DB: re-check the invoice
+            alt paid, cancelled, or no longer overdue
+                D->>DB: mark Skipped (with the reason)
+            else still applies
+                D->>N: send
+                N-->>D: ok or error
+                D->>DB: mark Sent and log activity,<br/>or keep for retry / mark Failed
+            end
         end
     end
 ```
 
-**When is an invoice overdue?** When it's Sent or Partially paid, has a balance left, and its due date is **before today in the business time zone** (`Africa/Johannesburg` by default). The rule lives in `Invoice.markOverdueIfDue`. The same check also runs when an already-late invoice is sent.
+**When is an invoice overdue?** When it's Sent or Partially paid, has a balance left, and its due date is **before that business's today**. "Today" is the real date in the app's time zone (`APP_TIME_ZONE`, `Africa/Johannesburg` by default; one setting for the whole app), plus the business's demo clock offset, which is 0 unless the time machine is used. The rule lives in `Invoice.markOverdueIfDue`. The same check also runs when an already-late invoice is sent.
 
 **The reminder schedule** is configurable (`APP_REMINDERS_OFFSETS_DAYS`, default `-3,0,1,7,14`). Each run looks for the **latest stage reached today**. If the job was down for a week, the customer gets a single "7 days overdue" reminder, not a burst of every missed one.
 
@@ -228,14 +233,16 @@ sequenceDiagram
 3. A Postgres advisory lock means only one copy of the job runs at a time. The scheduler and the dev "Run now" button share the same lock. If a server crashes, its database connection closes and Postgres releases the lock automatically.
 4. Each invoice is handled in its own transaction, so one bad record is logged and skipped instead of stopping the whole run.
 
-**How the simulation works:** the job writes reminders to the `notifications` table as *pending*. The dispatcher hands each one to the `NotificationSender` for its channel. The included senders write a log line, with email addresses and phone numbers partly masked, and the row is marked *sent*. If a sender throws an error, the notification is retried on the next run and marked *failed* after three attempts. Messages are rendered from plain-text templates in `infrastructure/src/main/resources/notification-templates/`.
+**How the simulation works:** the job writes reminders to the `notifications` table as *pending*. The dispatcher hands each one to the `NotificationSender` for its channel. The included senders write a log line, with email addresses and phone numbers partly masked, and the row is marked *sent*. If a sender throws an error, the notification is retried on the next run and marked *failed* after three attempts. Right before sending, the dispatcher re-checks the invoice: a reminder can wait in the outbox after a failed attempt, and if the invoice has been paid or cancelled in the meantime (or, for an overdue alert, is no longer overdue), the notification is marked *skipped* with the reason instead of being sent. Messages are rendered from plain-text templates in `infrastructure/src/main/resources/notification-templates/`.
 
 **Plugging in real email or SMS:** implement `NotificationSender` for the channel (for example with SendGrid or Amazon SES for email, Twilio or Clickatell for SMS) and register it in place of the simulated one. Nothing else changes.
 
 **Testing time:** everything reads the time from an injected `java.time.Clock`.
 - Unit tests use a clock they can move forward, so "20 days pass" runs in milliseconds.
-- The demo time machine uses an `AdjustableClock`: real time plus an offset.
-- Sign-in token expiry uses a separate real-time clock, so moving the demo clock never logs anyone out.
+- Business dates go through `BusinessCalendar`: real time plus that business's own clock offset (`businesses.clock_offset_days`). The demo time machine only changes the caller's business, so one business moving its clock never affects another. The overdue job's queries add each invoice's own business offset in SQL.
+- Resetting a business's clock also returns invoices that were only overdue in simulated time (due date not yet really passed) to Sent or Partially paid, with an activity entry saying why.
+- The browser asks the server for the business's date (`GET /api/v1/business/today`) and uses it for date defaults and validation, so both sides agree on "today".
+- Sign-in token expiry uses the real clock only, so moving the demo clock never logs anyone out.
 
 ---
 
@@ -263,7 +270,7 @@ sequenceDiagram
 |---|---|
 | **Passwords** | BCrypt (cost 12). Sign-in spends the same time hashing for unknown emails, so response timing doesn't reveal which accounts exist. Wrong email and wrong password give the same message. |
 | **Access tokens** | JWT signed with HS256, valid for 15 minutes, kept only in browser memory (never `localStorage`). |
-| **Refresh tokens** | Random 256-bit values, stored only as a SHA-256 hash, valid for 7 days. Sent as an `HttpOnly`, `SameSite=Strict` cookie scoped to `/api/v1/auth`. Each use replaces the token. Reusing an old one is treated as theft and signs out every session of that user. |
+| **Refresh tokens** | Random 256-bit values, stored only as a SHA-256 hash, valid for 7 days. Sent as an `HttpOnly`, `SameSite=Strict` cookie scoped to `/api/v1/auth`. Each use replaces the token. Reusing an old one is treated as theft and signs out every session of that user, with one exception: a token replaced less than 30 seconds ago (`APP_AUTH_REFRESH_REUSE_GRACE`) is assumed to be a second browser tab refreshing at the same moment, and gets its own new session. Tabs also take turns refreshing through the browser's Web Locks API, so this window is rarely needed. Signed-out tokens never get the grace period. |
 | **Tenant isolation** | The business ID comes only from the signed token, never from the request, and every query filters on it. Another business's records return `404`, so you can't even tell they exist. Integration tests check this. |
 | **Brute force** | Sign-in and registration are rate-limited per IP address (10 per minute by default), returning `429` with `Retry-After`. |
 | **Input** | Request bodies are validated (lengths, formats, ranges). Free text is trimmed and stripped of control characters. Messages are plain text, so customer data can't inject markup. |
@@ -347,3 +354,4 @@ Full request and response schemas are in Swagger at http://localhost:8080/swagge
 - Add metrics and tracing (Prometheus, OpenTelemetry), e.g. job duration and reminders sent or failed.
 - Keep secrets in a secret manager, serve over HTTPS with `APP_AUTH_COOKIE_SECURE=true`, and turn off the demo tools and seed data.
 - Paginate the activity history, for invoices with a very long history.
+- Make the reminder job cheaper: today it checks every open invoice in its own transaction each minute. Storing a `next_reminder_on` date per invoice (set whenever a reminder is queued or the invoice changes) would let it fetch only the invoices that are actually due a message, in batches.

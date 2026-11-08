@@ -280,6 +280,19 @@ The invoices marked Overdue before their due date are INV-2026-0004, 0005, 0016,
 
 **Evidence:** [TC-11](evidence/TC-11-cancelled.png).
 
+### Resolution (8 Nov 2026)
+
+All six defects have been fixed. Each fix is covered by automated tests; the manual run above has not been repeated yet.
+
+| Defect | Fix | Commit | Verified by |
+|---|---|---|---|
+| D1: Overdue stays after the clock is reset | Resetting a business's clock returns invoices whose due date hasn't really passed to Sent / Partially paid, with an activity entry | `e0feb14` | `DevClockIT.resettingTheClockReturnsNotYetDueInvoicesFromOverdue`, `InvoiceTest` |
+| D2: Invoice filters overflow on desktop | Date filters get their own two columns and can shrink | `610f844` | Checked in the browser at 1150px wide |
+| D3: Time machine shared by all businesses | Each business has its own clock offset; the overdue job judges each invoice by its own business's date | `e0feb14` | `DevClockIT.movingTheClockOnlyAffectsTheCallersBusiness`, `OverdueProcessorTest.eachBusinessIsJudgedByItsOwnClock` |
+| D4: Old error banner stays during new validation | Every form clears the banner when client validation fails | `475a43d` | `LoginPage.test.tsx` |
+| D5: Delete dialog stays open after refusal | The dialog closes and the toast explains why | `475a43d` | `CustomersPage.test.tsx` |
+| D6: Cancelled invoice shows a balance due | A cancelled invoice's balance due is 0 everywhere (page, list, PDF) | `c6dedc2` | `InvoiceTest.cancelledInvoiceHasNoBalanceDue` |
+
 ## 5. Test data created
 | Item | Value |
 |---|---|

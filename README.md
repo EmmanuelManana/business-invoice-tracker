@@ -172,13 +172,13 @@ If 3000 or 8080 are taken, copy `.env.example` to `.env` and change `WEB_PORT` a
   - Record full or partial payments. Clicking "save" twice won't record the same payment twice.
   - Every change is logged in the invoice's activity history.
   - Download any invoice as a PDF.
-- **Reminders:** a background job runs every minute. It marks late invoices as overdue and sends reminders 3 days before the due date, on the due date, and 1, 7 and 14 days after. Each reminder is sent only once.
+- **Reminders:** a background job runs every minute. It marks late invoices as overdue and sends reminders 3 days before the due date, on the due date, and 1, 7 and 14 days after. Each reminder is sent only once, and a reminder that's still waiting to go out is dropped if the invoice is paid or cancelled first.
 - **Notifications:** a bell in the top bar shows unread alerts, and a notifications page lists every reminder that was "sent".
 - **Dashboard:** totals for outstanding, overdue and paid-this-month, a chart of how old the unpaid amounts are, and the most overdue invoices.
 
 ## 3. Trying out the overdue reminders
 
-You don't have to wait days to see reminders. The dashboard has a **Demo time machine** that moves the app's clock forward.
+You don't have to wait days to see reminders. The dashboard has a **Demo time machine** that moves your business's date forward. Each business has its own clock, so moving yours doesn't change anyone else's dates.
 
 1. Sign in and go to **Invoices → New invoice**.
 2. Pick a customer (e.g. *Karoo Coffee Roasters*), set the **due date to tomorrow**, add a line item and click **Save draft**.
@@ -186,7 +186,7 @@ You don't have to wait days to see reminders. The dashboard has a **Demo time ma
 4. Go back to the **Dashboard** and click **+7 days**, then **Run overdue check now**.
 5. The bell now shows new notifications. Open **Notifications** to read the reminder emails and SMSes, and the alert that your invoice is overdue.
 6. Click **Run overdue check now** again: nothing new is sent, because each reminder only goes out once.
-7. Click **Reset** to put the clock back to today.
+7. Click **Reset** to put the clock back to today. Invoices that were only overdue because of the simulated date go back to **Sent**.
 
 The time machine is for demos only. It's switched off unless `APP_DEV_TOOLS_ENABLED=true`, which the Docker setup turns on for you.
 
@@ -238,7 +238,8 @@ A few decisions worth knowing about:
 - **Money** is stored as exact decimals, never floating point, and rounded per line so line totals always add up.
 - **Simulated notifications:** reminders are written to a `notifications` table, then handed to a sender for each channel. The included senders just log the message. To send real emails or SMSes, you'd add a sender for a provider such as SendGrid or Twilio. Nothing else would need to change.
 - **No duplicate reminders:** the database refuses a second reminder for the same invoice, stage and channel. A lock makes sure only one copy of the job runs at a time, even with several servers.
-- **Sign-in:** short-lived access tokens are kept in memory. A longer-lived refresh token sits in a secure cookie that JavaScript can't read.
+- **Sign-in:** short-lived access tokens are kept in memory. A longer-lived refresh token sits in a secure cookie that JavaScript can't read. If the same refresh token is used twice, that's treated as theft and every session is signed out, except within a 30-second window, which covers two browser tabs refreshing at the same moment.
+- **One "today":** the browser asks the server for the business's current date (`GET /business/today`) instead of trusting its own clock, so date defaults and checks match what the server accepts.
 
 ## 6. Settings
 
@@ -252,6 +253,8 @@ You only need these if you're changing the defaults. Put them in a `.env` file (
 | `APP_SEED_ENABLED` | `true` in Docker | Loads the demo business on start-up. |
 | `APP_SEED_DEMO_PASSWORD` | `Demo@12345` | Password for the demo account. |
 | `APP_OVERDUE_INTERVAL` | `PT1M` (1 minute) | How often the reminder job runs. |
+| `APP_TIME_ZONE` | `Africa/Johannesburg` | Time zone used to decide what "today" is. One setting for the whole app. |
+| `APP_AUTH_REFRESH_REUSE_GRACE` | `PT30S` | How long a just-replaced sign-in token is still accepted, so two tabs refreshing at once don't sign the user out. |
 | `APP_REMINDERS_OFFSETS_DAYS` | `-3,0,1,7,14` | When reminders are sent, in days relative to the due date. |
 | `APP_AUTH_COOKIE_SECURE` | `false` in Docker | Set to `true` when the site is served over HTTPS. |
 | `WEB_PORT` / `API_PORT` | `3000` / `8080` | Ports on your machine. |
@@ -263,12 +266,12 @@ The full, interactive list is in Swagger at http://localhost:8080/swagger-ui.htm
 | Area | Endpoints |
 |---|---|
 | Sign-in | `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `GET /auth/me` |
-| Business profile | `GET` / `PUT /business/profile` |
+| Business | `GET` / `PUT /business/profile`, `GET /business/today` |
 | Customers | `GET` / `POST /customers`, `GET` / `PUT` / `DELETE /customers/{id}` |
 | Invoices | `GET` / `POST /invoices`, `GET` / `PUT /invoices/{id}`, `POST /invoices/{id}/send`, `/cancel`, `/payments`, `GET /invoices/{id}/activity`, `/pdf` |
 | Notifications | `GET /notifications`, `/notifications/unread-count`, `POST /notifications/{id}/read`, `/notifications/read-all` |
 | Dashboard | `GET /dashboard/summary` |
-| Demo tools | `GET /dev/clock`, `POST /dev/clock/advance`, `/dev/clock/reset`, `/dev/overdue-check` |
+| Demo tools (your business only) | `GET /dev/clock`, `POST /dev/clock/advance`, `/dev/clock/reset`, `/dev/overdue-check` |
 
 Errors come back in a consistent JSON format with a short error code and a message that explains what went wrong.
 
@@ -279,7 +282,8 @@ Errors come back in a consistent JSON format with a short error code and a messa
 - One user per business, and one currency per business (ZAR by default).
 - "Sending" an invoice marks it as sent and starts the reminders. The invoice itself isn't emailed.
 - Payments can't be edited or refunded once recorded.
-- The demo time machine moves the clock for everyone using that server, which is why it's off by default.
+- "Today" is worked out in one time zone for the whole app (`APP_TIME_ZONE`), not per business.
+- The time machine is a demo feature and is off unless `APP_DEV_TOOLS_ENABLED=true`.
 
 **What I'd add next:**
 
@@ -288,3 +292,4 @@ Errors come back in a consistent JSON format with a short error code and a messa
 - Team members with different roles.
 - Credit notes, recurring invoices and multiple currencies.
 - Monitoring dashboards (metrics and tracing).
+- Make the reminder job cheaper at scale: store each invoice's next reminder date so the job only looks at invoices that are actually due a message, instead of checking every open invoice every minute.
