@@ -17,6 +17,12 @@ interface ModalProps {
 export function Modal({ open, title, onClose, children, footer }: ModalProps) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
+  // Parents usually pass a new onClose function on every render. Reading it through a ref keeps
+  // the effect below from re-running (and moving focus back to the first field) while typing.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -32,7 +38,7 @@ export function Modal({ open, title, onClose, children, footer }: ModalProps) {
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
-        onClose();
+        onCloseRef.current();
       } else if (event.key === 'Tab') {
         const items = focusable();
         if (items.length === 0) return;
@@ -52,7 +58,7 @@ export function Modal({ open, title, onClose, children, footer }: ModalProps) {
       document.removeEventListener('keydown', onKeyDown);
       previouslyFocused?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
