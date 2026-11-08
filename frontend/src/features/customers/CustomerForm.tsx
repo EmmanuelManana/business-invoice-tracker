@@ -71,7 +71,7 @@ export function CustomerForm({ customer, onSubmit, onCancel }: CustomerFormProps
   }
 
   return (
-    <form onSubmit={handleSubmit(submit)} noValidate className="space-y-4">
+    <form onSubmit={handleSubmit(submit, () => setFormError(null))} noValidate className="space-y-4">
       <FormError>{formError}</FormError>
       <Field label="Name" error={errors.name?.message} required>
         <input className="input" autoComplete="organization" {...register('name')} />

@@ -43,7 +43,7 @@ export function LoginPage() {
 
   return (
     <AuthShell title="Sign in" subtitle="Track invoices and get paid on time">
-      <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
+      <form onSubmit={handleSubmit(onSubmit, () => setFormError(null))} noValidate className="space-y-4">
         <FormError>{formError}</FormError>
         <Field label="Email" error={errors.email?.message} required>
           <input type="email" autoComplete="email" className="input" {...register('email')} />

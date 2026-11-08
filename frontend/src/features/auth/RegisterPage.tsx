@@ -52,7 +52,7 @@ export function RegisterPage() {
 
   return (
     <AuthShell title="Create your account" subtitle="Set up your business in under a minute">
-      <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
+      <form onSubmit={handleSubmit(onSubmit, () => setFormError(null))} noValidate className="space-y-4">
         <FormError>{formError}</FormError>
         <Field label="Business name" error={errors.businessName?.message} required>
           <input className="input" autoComplete="organization" {...register('businessName')} />

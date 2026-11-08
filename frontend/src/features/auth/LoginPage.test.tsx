@@ -39,6 +39,25 @@ describe('LoginPage', () => {
     expect(login).not.toHaveBeenCalled();
   });
 
+  it('clears an old server error when new validation errors appear', async () => {
+    const login = vi
+      .fn()
+      .mockRejectedValue(new ApiError({ status: 401, detail: 'Invalid email or password' }));
+    renderLogin(login);
+
+    await userEvent.type(screen.getByLabelText(/email/i), 'demo@acme.co.za');
+    await userEvent.type(screen.getByLabelText(/password/i), 'wrong');
+    await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
+    expect(await screen.findByText('Invalid email or password')).toBeInTheDocument();
+
+    await userEvent.clear(screen.getByLabelText(/email/i));
+    await userEvent.type(screen.getByLabelText(/email/i), 'not-an-email');
+    await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
+
+    expect(await screen.findByText('Enter a valid email address')).toBeInTheDocument();
+    expect(screen.queryByText('Invalid email or password')).not.toBeInTheDocument();
+  });
+
   it('signs in and navigates to the dashboard', async () => {
     const login = vi.fn().mockResolvedValue(undefined);
     renderLogin(login);

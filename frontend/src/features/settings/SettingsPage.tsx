@@ -115,7 +115,11 @@ function ProfileForm({ profile }: { profile: BusinessProfile }) {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} noValidate className="card max-w-3xl space-y-6 p-6">
+    <form
+      onSubmit={handleSubmit(onSubmit, () => setFormError(null))}
+      noValidate
+      className="card max-w-3xl space-y-6 p-6"
+    >
       <FormError>{formError}</FormError>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Business name" error={errors.name?.message} required className="sm:col-span-2">

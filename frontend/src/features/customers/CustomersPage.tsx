@@ -50,7 +50,11 @@ export function CustomersPage() {
       setDeleting(null);
       invalidate();
     },
-    onError: (error) => toast.error(errorMessage(error)),
+    onError: (error) => {
+      // Close the dialog; the toast explains why (e.g. the customer still has invoices).
+      setDeleting(null);
+      toast.error(errorMessage(error));
+    },
   });
 
   return (
