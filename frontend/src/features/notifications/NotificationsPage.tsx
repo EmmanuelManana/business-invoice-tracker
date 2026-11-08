@@ -93,7 +93,17 @@ export function NotificationsPage() {
                   >
                     <div className="flex shrink-0 items-center gap-2 sm:w-40">
                       <ChannelBadge channel={n.channel} />
-                      <Badge tone={n.status === 'SENT' ? 'green' : n.status === 'FAILED' ? 'red' : 'slate'}>
+                      <Badge
+                        tone={
+                          n.status === 'SENT'
+                            ? 'green'
+                            : n.status === 'FAILED'
+                              ? 'red'
+                              : n.status === 'SKIPPED'
+                                ? 'amber'
+                                : 'slate'
+                        }
+                      >
                         {n.status}
                       </Badge>
                     </div>
@@ -119,7 +129,12 @@ export function NotificationsPage() {
                       <div className="flex flex-wrap gap-4 text-xs text-slate-500">
                         <span>Attempts: {n.attempts}</span>
                         {n.sentAt && <span>Sent {formatDateTime(n.sentAt)}</span>}
-                        {n.lastError && <span className="text-red-600">Error: {n.lastError}</span>}
+                        {n.lastError &&
+                          (n.status === 'SKIPPED' ? (
+                            <span>Not sent: {n.lastError}</span>
+                          ) : (
+                            <span className="text-red-600">Error: {n.lastError}</span>
+                          ))}
                         {n.invoiceId && (
                           <Link
                             to={`/invoices/${n.invoiceId}`}

@@ -115,6 +115,15 @@ public class Notification {
         status = attempts >= maxAttempts ? NotificationStatus.FAILED : NotificationStatus.PENDING;
     }
 
+    /** Gives up on a pending notification that no longer applies; the reason is kept for the log. */
+    public void markSkipped(String reason) {
+        if (status != NotificationStatus.PENDING) {
+            throw new IllegalStateException("Only pending notifications can be skipped (status: " + status + ")");
+        }
+        status = NotificationStatus.SKIPPED;
+        lastError = reason;
+    }
+
     public void markRead(Instant now) {
         if (readAt == null) {
             readAt = now;

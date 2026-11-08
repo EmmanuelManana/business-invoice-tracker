@@ -3,7 +3,7 @@
 export type InvoiceStatus = 'DRAFT' | 'SENT' | 'PARTIALLY_PAID' | 'OVERDUE' | 'PAID' | 'CANCELLED';
 export type PaymentMethod = 'EFT' | 'CARD' | 'CASH' | 'OTHER';
 export type NotificationChannel = 'EMAIL' | 'SMS' | 'IN_APP';
-export type NotificationStatus = 'PENDING' | 'SENT' | 'FAILED';
+export type NotificationStatus = 'PENDING' | 'SENT' | 'FAILED' | 'SKIPPED';
 export type NotificationKind = 'PAYMENT_REMINDER' | 'OVERDUE_ALERT';
 
 export const INVOICE_STATUSES: InvoiceStatus[] = [
@@ -237,6 +237,7 @@ export interface OverdueRunResult {
   alertsQueued: number;
   notificationsSent: number;
   notificationsFailed: number;
+  notificationsSkipped: number;
   errors: number;
   skipped: boolean;
 }

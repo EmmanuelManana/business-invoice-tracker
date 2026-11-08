@@ -108,18 +108,24 @@ public class OverdueProcessor {
                 counters.alertsQueued,
                 dispatched.sent(),
                 dispatched.failed(),
+                dispatched.skipped(),
                 counters.errors,
                 false);
-        if (result.invoicesMarkedOverdue() + result.remindersQueued() + result.notificationsSent() > 0
+        if (result.invoicesMarkedOverdue()
+                                + result.remindersQueued()
+                                + result.notificationsSent()
+                                + result.notificationsSkipped()
+                        > 0
                 || result.errors() > 0) {
             log.info(
-                    "Overdue run for {}: {} marked overdue, {} reminders + {} alerts queued, {} sent, {} failed, {} errors",
+                    "Overdue run for {}: {} marked overdue, {} reminders + {} alerts queued, {} sent, {} failed, {} skipped, {} errors",
                     today,
                     result.invoicesMarkedOverdue(),
                     result.remindersQueued(),
                     result.alertsQueued(),
                     result.notificationsSent(),
                     result.notificationsFailed(),
+                    result.notificationsSkipped(),
                     result.errors());
         } else {
             log.debug("Overdue run for {}: nothing to do", today);

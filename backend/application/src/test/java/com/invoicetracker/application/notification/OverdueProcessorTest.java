@@ -269,6 +269,65 @@ class OverdueProcessorTest {
     }
 
     @Test
+    void reminderIsSkippedIfInvoiceIsPaidBeforeItIsSent() {
+        email.failNext = 1; // first delivery attempt fails, so the reminder waits in the outbox
+        Invoice invoice = sentInvoiceDueInDays(customerWithoutPhone, 0);
+        OverdueProcessor processor = processor();
+        processor.run();
+
+        invoice.recordPayment(
+                new BigDecimal("1150"), LocalDate.now(clock), PaymentMethod.EFT, null, "paid", clock.instant());
+        OverdueRunResult retry = processor.run();
+
+        assertThat(email.sent).isEmpty();
+        assertThat(retry.notificationsSkipped()).isEqualTo(1);
+        assertThat(retry.notificationsSent()).isZero();
+        assertThat(notificationsFor(invoice)).singleElement().satisfies(n -> {
+            assertThat(n.getStatus()).isEqualTo(NotificationStatus.SKIPPED);
+            assertThat(n.getLastError()).contains("PAID");
+        });
+        assertThat(invoice.getActivities()).noneMatch(a -> a.getType() == ActivityType.REMINDER_SENT);
+    }
+
+    @Test
+    void reminderIsSkippedIfInvoiceIsCancelledBeforeItIsSent() {
+        email.failNext = 1;
+        Invoice invoice = sentInvoiceDueInDays(customerWithoutPhone, 0);
+        OverdueProcessor processor = processor();
+        processor.run();
+
+        invoice.cancel("customer disputed", clock.instant());
+        processor.run();
+
+        assertThat(email.sent).isEmpty();
+        assertThat(notificationsFor(invoice))
+                .singleElement()
+                .extracting(Notification::getStatus)
+                .isEqualTo(NotificationStatus.SKIPPED);
+    }
+
+    @Test
+    void overdueAlertIsSkippedIfInvoiceIsPaidBeforeItIsSent() {
+        inApp.failNext = 1;
+        Invoice invoice = sentInvoiceDueInDays(customerWithoutPhone, 0);
+        clock.advanceDays(1);
+        OverdueProcessor processor = processor();
+        processor.run();
+        assertThat(invoice.getStatus()).isEqualTo(InvoiceStatus.OVERDUE);
+
+        invoice.recordPayment(
+                new BigDecimal("1150"), LocalDate.now(clock), PaymentMethod.EFT, null, "paid", clock.instant());
+        processor.run();
+
+        assertThat(inApp.sent).isEmpty();
+        assertThat(notificationsFor(invoice))
+                .filteredOn(n -> n.getKind() == NotificationKind.OVERDUE_ALERT)
+                .singleElement()
+                .extracting(Notification::getStatus)
+                .isEqualTo(NotificationStatus.SKIPPED);
+    }
+
+    @Test
     void transientFailureSucceedsOnRetry() {
         email.failNext = 1;
         Invoice invoice = sentInvoiceDueInDays(customerWithoutPhone, 0);

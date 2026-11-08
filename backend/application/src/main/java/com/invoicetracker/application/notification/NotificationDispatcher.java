@@ -4,6 +4,8 @@ import com.invoicetracker.application.config.ApplicationSettings;
 import com.invoicetracker.application.port.InvoiceRepository;
 import com.invoicetracker.application.port.NotificationRepository;
 import com.invoicetracker.application.port.NotificationSender;
+import com.invoicetracker.domain.invoice.Invoice;
+import com.invoicetracker.domain.invoice.InvoiceStatus;
 import com.invoicetracker.domain.notification.Notification;
 import com.invoicetracker.domain.notification.NotificationChannel;
 import com.invoicetracker.domain.notification.NotificationKind;
@@ -14,6 +16,7 @@ import java.time.Instant;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,6 +28,10 @@ import org.springframework.transaction.support.TransactionOperations;
  * outcome. Each notification is processed in its own transaction so one failure cannot affect the
  * others. Failed deliveries stay PENDING and are retried on the next run, up to the configured
  * number of attempts.
+ *
+ * <p>Right before sending, the invoice is checked again. A reminder can sit in the outbox for a
+ * while (a failed attempt is retried on the next run), and the customer may have paid or the
+ * invoice may have been cancelled in the meantime. Such notifications are skipped, not sent.
  */
 @Component
 public class NotificationDispatcher {
@@ -56,23 +63,39 @@ public class NotificationDispatcher {
     public DispatchResult dispatchPending() {
         int sent = 0;
         int failed = 0;
+        int skipped = 0;
         for (UUID id : notifications.findPendingIds(settings.dispatchBatchSize())) {
-            Boolean ok = tx.execute(status -> dispatchOne(id));
-            if (Boolean.TRUE.equals(ok)) {
+            Outcome outcome = tx.execute(status -> dispatchOne(id));
+            if (outcome == Outcome.SENT) {
                 sent++;
-            } else if (Boolean.FALSE.equals(ok)) {
+            } else if (outcome == Outcome.FAILED) {
                 failed++;
+            } else if (outcome == Outcome.SKIPPED) {
+                skipped++;
             }
         }
-        return new DispatchResult(sent, failed);
+        return new DispatchResult(sent, failed, skipped);
     }
 
-    /** Returns true if sent, false if delivery failed, null if there was nothing to do. */
-    private Boolean dispatchOne(UUID id) {
+    private Outcome dispatchOne(UUID id) {
         Notification notification = notifications.findById(id).orElse(null);
         if (notification == null || notification.getStatus() != NotificationStatus.PENDING) {
-            return null;
+            return Outcome.NOTHING_TO_DO;
         }
+        Optional<Invoice> invoice =
+                Optional.ofNullable(notification.getInvoiceId()).flatMap(invoices::findById);
+        Optional<String> skipReason = invoice.flatMap(i -> reasonToSkip(notification, i));
+        if (skipReason.isPresent()) {
+            notification.markSkipped(skipReason.get());
+            notifications.save(notification);
+            log.info(
+                    "Skipped notification {} for invoice {}: {}",
+                    notification.getId(),
+                    notification.getInvoiceNumber(),
+                    skipReason.get());
+            return Outcome.SKIPPED;
+        }
+
         NotificationSender sender = senders.get(notification.getChannel());
         Instant now = clock.instant();
         try {
@@ -82,8 +105,8 @@ public class NotificationDispatcher {
             sender.send(notification);
             notification.markSent(now);
             notifications.save(notification);
-            recordOnInvoice(notification, now);
-            return true;
+            invoice.ifPresent(i -> recordOnInvoice(notification, i, now));
+            return Outcome.SENT;
         } catch (RuntimeException e) {
             notification.markFailed(e.getMessage(), settings.maxDeliveryAttempts());
             notifications.save(notification);
@@ -94,27 +117,44 @@ public class NotificationDispatcher {
                     notification.getAttempts(),
                     settings.maxDeliveryAttempts(),
                     e.getMessage());
-            return false;
+            return Outcome.FAILED;
         }
     }
 
-    private void recordOnInvoice(Notification notification, Instant now) {
-        if (notification.getKind() != NotificationKind.PAYMENT_REMINDER || notification.getInvoiceId() == null) {
+    /** Why this notification should no longer be sent, given the invoice's current state. */
+    static Optional<String> reasonToSkip(Notification notification, Invoice invoice) {
+        InvoiceStatus status = invoice.getStatus();
+        if (notification.getKind() == NotificationKind.PAYMENT_REMINDER && !status.isOpen()) {
+            return Optional.of("invoice is " + status + "; nothing is owed");
+        }
+        if (notification.getKind() == NotificationKind.OVERDUE_ALERT && status != InvoiceStatus.OVERDUE) {
+            return Optional.of("invoice is " + status + "; no longer overdue");
+        }
+        return Optional.empty();
+    }
+
+    private void recordOnInvoice(Notification notification, Invoice invoice, Instant now) {
+        if (notification.getKind() != NotificationKind.PAYMENT_REMINDER) {
             return;
         }
-        invoices.findById(notification.getInvoiceId()).ifPresent(invoice -> {
-            invoice.recordReminderSent(
-                    stageLabel(notification.getStage()),
-                    notification.getChannel().name(),
-                    notification.getRecipient(),
-                    now);
-            invoices.save(invoice);
-        });
+        invoice.recordReminderSent(
+                stageLabel(notification.getStage()),
+                notification.getChannel().name(),
+                notification.getRecipient(),
+                now);
+        invoices.save(invoice);
     }
 
     private static String stageLabel(String code) {
         return ReminderStage.parse(code).map(ReminderStage::label).orElse(code);
     }
 
-    public record DispatchResult(int sent, int failed) {}
+    private enum Outcome {
+        SENT,
+        FAILED,
+        SKIPPED,
+        NOTHING_TO_DO
+    }
+
+    public record DispatchResult(int sent, int failed, int skipped) {}
 }
