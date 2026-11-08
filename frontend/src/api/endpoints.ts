@@ -2,6 +2,7 @@ import { request, setSession, toQuery } from './client';
 import type {
   Activity,
   AuthResponse,
+  BusinessDate,
   BusinessProfile,
   ClockStatus,
   Customer,
@@ -45,6 +46,8 @@ export const authApi = {
 
 export const businessApi = {
   get: () => request<BusinessProfile>('/api/v1/business/profile'),
+  /** The business's current date (follows the demo clock); use it instead of the browser's date. */
+  today: () => request<BusinessDate>('/api/v1/business/today'),
   update: (input: Omit<BusinessProfile, 'id'>) =>
     request<BusinessProfile>('/api/v1/business/profile', { method: 'PUT', body: input }),
 };

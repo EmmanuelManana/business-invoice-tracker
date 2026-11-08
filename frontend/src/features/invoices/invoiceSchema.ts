@@ -1,16 +1,24 @@
 import { z } from 'zod';
 import type { InvoiceDetail, InvoiceInput } from '@/api/types';
 import { roundMoney } from '@/lib/format';
+import { decimalsMessage, hasAtMostDecimals, hasAtMostIntegerDigits } from '@/lib/validation';
 
 export const DEFAULT_VAT_RATE = 0.15;
 
 const number = (message: string) =>
   z.number({ invalid_type_error: message, required_error: message }).refine(Number.isFinite, message);
 
+// Limits match the API: quantity up to 9 digits with 3 decimals, unit price up to 12 digits with 2.
 export const lineItemSchema = z.object({
   description: z.string().trim().min(1, 'Description is required').max(500),
-  quantity: number('Enter a quantity').refine((v) => v > 0, 'Must be greater than 0'),
-  unitPrice: number('Enter a price').refine((v) => v >= 0, 'Cannot be negative'),
+  quantity: number('Enter a quantity')
+    .refine((v) => v > 0, 'Must be greater than 0')
+    .refine((v) => hasAtMostDecimals(v, 3), decimalsMessage(3))
+    .refine((v) => hasAtMostIntegerDigits(v, 9), 'Quantity is too large'),
+  unitPrice: number('Enter a price')
+    .refine((v) => v >= 0, 'Cannot be negative')
+    .refine((v) => hasAtMostDecimals(v, 2), decimalsMessage(2))
+    .refine((v) => hasAtMostIntegerDigits(v, 12), 'Price is too large'),
   vatApplicable: z.boolean(),
 });
 

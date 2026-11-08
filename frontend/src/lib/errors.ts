@@ -12,6 +12,11 @@ export function errorMessage(error: unknown): string {
   return 'Something went wrong';
 }
 
+/** Turns a server field path like `lineItems[0].quantity` into the form's `lineItems.0.quantity`. */
+export function toFormPath(serverField: string): string {
+  return serverField.replace(/\[(\d+)\]/g, '.$1');
+}
+
 /** Copies server-side field validation errors onto a react-hook-form instance. Returns true if any applied. */
 export function applyServerErrors<T extends FieldValues>(
   error: unknown,
@@ -21,7 +26,7 @@ export function applyServerErrors<T extends FieldValues>(
     return false;
   }
   for (const fieldError of error.problem.errors) {
-    setError(fieldError.field as Path<T>, { type: 'server', message: fieldError.message });
+    setError(toFormPath(fieldError.field) as Path<T>, { type: 'server', message: fieldError.message });
   }
   return true;
 }

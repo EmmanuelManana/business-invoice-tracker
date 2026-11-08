@@ -1,5 +1,6 @@
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { ApiError } from '@/api/client';
 import type { Customer } from '@/api/types';
 import { renderWithProviders } from '@/test/render';
 import { InvoiceForm } from './InvoiceForm';
@@ -79,6 +80,39 @@ describe('InvoiceForm', () => {
     expect(await screen.findByText('Choose a customer')).toBeInTheDocument();
     expect(screen.getByText('Description is required')).toBeInTheDocument();
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('enforces the same decimal places as the server', async () => {
+    const onSubmit = renderForm();
+    await userEvent.selectOptions(screen.getByLabelText(/customer/i), 'c-1');
+
+    await fillLine(0, 'Design work', '1.0005', '99.999');
+    await userEvent.click(screen.getByRole('button', { name: /save draft/i }));
+
+    expect(await screen.findByText('Use at most 3 decimal places')).toBeInTheDocument();
+    expect(screen.getByText('Use at most 2 decimal places')).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('shows server errors on the matching line item field', async () => {
+    renderForm(
+      vi.fn().mockRejectedValue(
+        new ApiError({
+          status: 400,
+          code: 'validation_failed',
+          detail: 'One or more fields are invalid.',
+          errors: [{ field: 'lineItems[0].description', message: 'size must be between 0 and 500' }],
+        }),
+      ),
+    );
+    await userEvent.selectOptions(screen.getByLabelText(/customer/i), 'c-1');
+    await fillLine(0, 'Design work', '1', '100');
+
+    await userEvent.click(screen.getByRole('button', { name: /save draft/i }));
+
+    expect(await screen.findByText('size must be between 0 and 500')).toBeInTheDocument();
+    const line = screen.getAllByTestId('line-item')[0]!;
+    expect(within(line).getByLabelText(/description/i)).toHaveAttribute('aria-invalid', 'true');
   });
 
   it('submits valid values', async () => {

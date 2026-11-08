@@ -5,7 +5,8 @@ import { ApiError } from '@/api/client';
 import { businessApi, customerApi, invoiceApi } from '@/api/endpoints';
 import { LoadingState } from '@/components/ui/Spinner';
 import { EmptyState, ErrorState, PageHeader } from '@/components/ui/States';
-import { addDaysIso, todayIso } from '@/lib/format';
+import { addDaysIso } from '@/lib/format';
+import { useBusinessToday } from '@/lib/useBusinessToday';
 import { queryKeys } from '@/lib/queryClient';
 import { InvoiceForm } from './InvoiceForm';
 import { emptyLine, fromInvoice, toInvoiceInput, type InvoiceFormValues } from './invoiceSchema';
@@ -22,13 +23,14 @@ export function InvoiceEditorPage() {
     queryFn: () => customerApi.list({ size: 100 }),
   });
   const business = useQuery({ queryKey: queryKeys.business, queryFn: businessApi.get });
+  const { today: businessToday, ready: todayReady } = useBusinessToday();
   const invoice = useQuery({
     queryKey: queryKeys.invoice(id ?? ''),
     queryFn: () => invoiceApi.get(id!),
     enabled: isEdit,
   });
 
-  const loading = customers.isLoading || business.isLoading || (isEdit && invoice.isLoading);
+  const loading = !todayReady || customers.isLoading || business.isLoading || (isEdit && invoice.isLoading);
   const error = customers.error ?? business.error ?? invoice.error;
 
   async function handleSubmit(values: InvoiceFormValues) {
@@ -92,7 +94,7 @@ export function InvoiceEditorPage() {
     );
   }
 
-  const today = todayIso();
+  const today = businessToday;
   const defaults: InvoiceFormValues =
     isEdit && invoice.data
       ? fromInvoice(invoice.data)

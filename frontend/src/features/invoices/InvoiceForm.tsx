@@ -5,7 +5,7 @@ import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import type { Customer } from '@/api/types';
 import { Button } from '@/components/ui/Button';
 import { Field, FormError } from '@/components/ui/Field';
-import { errorMessage } from '@/lib/errors';
+import { applyServerErrors, errorMessage } from '@/lib/errors';
 import { formatMoney } from '@/lib/format';
 import { emptyLine, invoiceSchema, previewTotals, type InvoiceFormValues } from './invoiceSchema';
 
@@ -31,6 +31,7 @@ export function InvoiceForm({
     register,
     control,
     handleSubmit,
+    setError,
     formState: { errors, isSubmitting },
   } = useForm<InvoiceFormValues>({ resolver: zodResolver(invoiceSchema), defaultValues });
   const { fields, append, remove } = useFieldArray({ control, name: 'lineItems' });
@@ -42,12 +43,13 @@ export function InvoiceForm({
     try {
       await onSubmit(values);
     } catch (error) {
+      applyServerErrors(error, setError);
       setFormError(errorMessage(error));
     }
   }
 
   return (
-    <form onSubmit={handleSubmit(submit)} noValidate className="space-y-6">
+    <form onSubmit={handleSubmit(submit, () => setFormError(null))} noValidate className="space-y-6">
       <FormError>{formError}</FormError>
 
       <section className="card grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4">

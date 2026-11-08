@@ -14,6 +14,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { errorMessage } from '@/lib/errors';
 import { formatDate, formatDateTime, formatMoney, humaniseStatus } from '@/lib/format';
 import { queryKeys } from '@/lib/queryClient';
+import { useBusinessToday } from '@/lib/useBusinessToday';
 import { PaymentForm } from './PaymentForm';
 
 export function InvoiceDetailPage() {
@@ -24,6 +25,7 @@ export function InvoiceDetailPage() {
     queryKey: queryKeys.invoiceActivity(id),
     queryFn: () => invoiceApi.activity(id),
   });
+  const { today: businessToday } = useBusinessToday();
 
   const [paymentKey, setPaymentKey] = useState<string | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -261,6 +263,7 @@ export function InvoiceDetailPage() {
         <PaymentForm
           balanceDue={inv.balanceDue}
           currency={inv.currency}
+          today={businessToday}
           onSubmit={(input) => pay.mutateAsync(input)}
           onCancel={() => setPaymentKey(null)}
         />

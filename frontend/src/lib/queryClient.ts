@@ -29,5 +29,6 @@ export const queryKeys = {
   notificationList: (query: object) => ['notifications', 'list', query] as const,
   unreadCount: ['notifications', 'unread-count'] as const,
   business: ['business'] as const,
+  businessToday: ['business', 'today'] as const,
   devClock: ['dev', 'clock'] as const,
 };
