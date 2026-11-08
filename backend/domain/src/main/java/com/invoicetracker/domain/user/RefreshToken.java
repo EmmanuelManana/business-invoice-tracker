@@ -63,6 +63,14 @@ public class RefreshToken {
         return !isRevoked() && !isExpired(now);
     }
 
+    /**
+     * True if this token was replaced by a newer one (rotation, not sign-out) less than
+     * {@code grace} ago. Used to tell two tabs refreshing at once apart from a stolen token.
+     */
+    public boolean wasRotatedWithin(java.time.Duration grace, Instant now) {
+        return revokedAt != null && replacedBy != null && now.isBefore(revokedAt.plus(grace));
+    }
+
     public void revoke(Instant now, UUID replacedBy) {
         if (revokedAt == null) {
             this.revokedAt = now;

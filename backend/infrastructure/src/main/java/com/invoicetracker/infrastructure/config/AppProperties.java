@@ -37,6 +37,8 @@ public record AppProperties(
             @DefaultValue("invoice-tracker") @NotBlank String issuer,
             @DefaultValue("PT15M") @NotNull Duration accessTokenTtl,
             @DefaultValue("P7D") @NotNull Duration refreshTokenTtl,
+            /* How long a just-rotated refresh token is still accepted (two tabs refreshing at once). */
+            @DefaultValue("PT30S") @NotNull Duration refreshReuseGrace,
             /* Set to false only for local HTTP development. */
             @DefaultValue("true") boolean cookieSecure) {}
 

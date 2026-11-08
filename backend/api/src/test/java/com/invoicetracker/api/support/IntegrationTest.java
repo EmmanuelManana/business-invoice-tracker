@@ -26,6 +26,9 @@ import org.testcontainers.containers.PostgreSQLContainer;
         properties = {
             "app.auth.jwt-secret=integration-test-secret-0123456789-abcdefghij",
             "app.auth.cookie-secure=false",
+            // No grace by default, so replaying a rotated token is always treated as theft;
+            // RefreshGraceIT covers the grace period.
+            "app.auth.refresh-reuse-grace=PT0S",
             "app.overdue.scheduler-enabled=false",
             "app.dev-tools.enabled=true",
             "app.seed.enabled=false",

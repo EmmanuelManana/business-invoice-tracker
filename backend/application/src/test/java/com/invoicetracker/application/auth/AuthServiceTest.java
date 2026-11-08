@@ -101,14 +101,39 @@ class AuthServiceTest {
     }
 
     @Test
-    void reusingARotatedTokenRevokesAllSessions() {
+    void twoTabsRefreshingAtOnceBothStaySignedIn() {
+        AuthResult first = register();
+
+        AuthResult tabA = service.refresh(first.refreshToken());
+        clock.advance(java.time.Duration.ofSeconds(2));
+        AuthResult tabB = service.refresh(first.refreshToken()); // same old cookie, moments later
+
+        assertThat(tabB.refreshToken()).isNotEqualTo(tabA.refreshToken());
+        // Neither tab was signed out: both new tokens still work.
+        assertThat(service.refresh(tabA.refreshToken()).accessToken()).isNotBlank();
+        assertThat(service.refresh(tabB.refreshToken()).accessToken()).isNotBlank();
+    }
+
+    @Test
+    void reusingARotatedTokenAfterTheGracePeriodRevokesAllSessions() {
         AuthResult first = register();
         AuthResult second = service.refresh(first.refreshToken());
+        clock.advance(java.time.Duration.ofSeconds(31)); // past the 30-second grace period
 
         assertThatThrownBy(() -> service.refresh(first.refreshToken()))
                 .isInstanceOf(AuthenticationFailedException.class);
         // The legitimate (newer) token is now revoked too.
         assertThatThrownBy(() -> service.refresh(second.refreshToken()))
+                .isInstanceOf(AuthenticationFailedException.class);
+    }
+
+    @Test
+    void signedOutTokenGetsNoGracePeriod() {
+        AuthResult first = register();
+        service.logout(first.refreshToken());
+        clock.advance(java.time.Duration.ofSeconds(1));
+
+        assertThatThrownBy(() -> service.refresh(first.refreshToken()))
                 .isInstanceOf(AuthenticationFailedException.class);
     }
 

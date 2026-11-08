@@ -100,6 +100,11 @@ public class AuthService {
     /**
      * Rotates a refresh token. If a token that was already rotated is presented again, it has
      * probably been stolen, so every session of that user is revoked.
+     *
+     * <p>Exception: a token rotated only moments ago (within the configured grace period) is most
+     * likely a second browser tab that refreshed at the same time. That tab gets a fresh token pair
+     * of its own instead of signing the user out everywhere. Tokens revoked by sign-out never get
+     * this grace.
      */
     @Transactional(noRollbackFor = AuthenticationFailedException.class)
     public AuthResult refresh(String rawRefreshToken) {
@@ -111,6 +116,12 @@ public class AuthService {
                 .findByTokenHash(RefreshTokens.hash(rawRefreshToken))
                 .orElseThrow(() -> new AuthenticationFailedException(INVALID_REFRESH));
 
+        if (token.isRevoked() && token.wasRotatedWithin(settings.refreshReuseGrace(), now)) {
+            AppUser user = users.findById(token.getUserId())
+                    .orElseThrow(() -> new AuthenticationFailedException(INVALID_REFRESH));
+            log.info("Concurrent refresh for user {} within the grace period; issuing a new session", user.getId());
+            return issueTokens(user, loadBusiness(user), now);
+        }
         if (token.isRevoked()) {
             int revoked = refreshTokens.revokeAllForUser(token.getUserId(), now);
             log.warn(

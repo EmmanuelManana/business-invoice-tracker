@@ -28,6 +28,7 @@ public class InfrastructureConfig {
     public ApplicationSettings applicationSettings(AppProperties p) {
         return new ApplicationSettings(
                 p.auth().refreshTokenTtl(),
+                p.auth().refreshReuseGrace(),
                 p.invoices().defaultVatRate(),
                 p.reminders().offsetsDays(),
                 p.reminders().smsEnabled(),

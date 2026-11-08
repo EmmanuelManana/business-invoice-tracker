@@ -267,7 +267,8 @@ class OverdueProcessorTest {
 
     @Test
     void smsCanBeDisabled() {
-        var settings = new ApplicationSettings(Duration.ofDays(7), new BigDecimal("0.15"), List.of(0), false, 3, 100);
+        var settings = new ApplicationSettings(
+                Duration.ofDays(7), Duration.ofSeconds(30), new BigDecimal("0.15"), List.of(0), false, 3, 100);
         Invoice invoice = sentInvoiceDueInDays(customerWithPhone, 0);
 
         processor(settings).run();

@@ -46,7 +46,9 @@ export function hasAccessToken() {
  */
 export function refreshSession(): Promise<AuthResponse | null> {
   if (!refreshInFlight) {
-    refreshInFlight = fetch('/api/v1/auth/refresh', { method: 'POST', credentials: 'same-origin' })
+    refreshInFlight = acrossTabs(() =>
+      fetch('/api/v1/auth/refresh', { method: 'POST', credentials: 'same-origin' }),
+    )
       .then(async (response) => {
         if (!response.ok) {
           setSession(null);
@@ -65,6 +67,17 @@ export function refreshSession(): Promise<AuthResponse | null> {
       });
   }
   return refreshInFlight;
+}
+
+/**
+ * Runs the refresh while holding a lock shared by every tab of this app, so two tabs never send
+ * the same refresh cookie at the same moment: the second tab waits, then sends the cookie the first
+ * tab just rotated. Browsers without the Web Locks API fall back to running it directly; the
+ * server's short grace period covers that case.
+ */
+function acrossTabs<T>(work: () => Promise<T>): Promise<T> {
+  const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
+  return locks ? locks.request('invoice-tracker-refresh', work) : work();
 }
 
 export interface RequestOptions {

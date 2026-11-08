@@ -12,6 +12,7 @@ import java.util.Objects;
  */
 public record ApplicationSettings(
         Duration refreshTokenTtl,
+        Duration refreshReuseGrace,
         BigDecimal defaultVatRate,
         List<Integer> reminderOffsetsDays,
         boolean smsRemindersEnabled,
@@ -20,6 +21,7 @@ public record ApplicationSettings(
 
     public ApplicationSettings {
         Objects.requireNonNull(refreshTokenTtl, "refreshTokenTtl");
+        Objects.requireNonNull(refreshReuseGrace, "refreshReuseGrace");
         Objects.requireNonNull(defaultVatRate, "defaultVatRate");
         reminderOffsetsDays = List.copyOf(reminderOffsetsDays);
         if (maxDeliveryAttempts < 1) {
@@ -32,6 +34,12 @@ public record ApplicationSettings(
 
     public static ApplicationSettings defaults() {
         return new ApplicationSettings(
-                Duration.ofDays(7), new BigDecimal("0.15"), List.of(-3, 0, 1, 7, 14), true, 3, 200);
+                Duration.ofDays(7),
+                Duration.ofSeconds(30),
+                new BigDecimal("0.15"),
+                List.of(-3, 0, 1, 7, 14),
+                true,
+                3,
+                200);
     }
 }
